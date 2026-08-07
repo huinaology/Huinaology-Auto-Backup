@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notion Auto-Backup Widget</title>
+    <style>
+        :root {
+            --bg-color: #F7F3FC; --accent-color: #F4C2D7; --accent-hover: #E0B0C5; --secondary-accent: #DCD0FF;
+            --text-main: #6D6373; --text-sub: #A89FAA; --border-color: #EBE0F5; --card-bg: #FFFFFF;
+            --main-bg: #FFF; --success-bg: #E3F6F3; --success-text: #2D8B7E; --fail-bg: #FBE8E8;
+            --fail-text: #C55353; --warn-bg: #FFF3E0; --warn-text: #E65100; --log-bg: #2D2D2D; --log-text: #E0E0E0;
+        }
+
+        [data-theme="dark"] {
+            --text-main: #E0D8E8; --text-sub: #9B93A0; --border-color: #3D3545; --card-bg: #2A2235;
+            --main-bg: #1E1828; --success-bg: #1A332E; --success-text: #5ED4B9; --fail-bg: #3A1E1E;
+            --fail-text: #F28B8B; --warn-bg: #3A2E1A; --warn-text: #FFB74D; --log-bg: #12101A; --log-text: #C8C0D0;
+        }
+
+        * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; transition: background-color 0.4s ease; }
+
+        .top-nav { display: flex; gap: 8px; padding: 12px 16px 0 16px; background: transparent; z-index: 5; position: relative; top: 2px; justify-content: center; }
+        .nav-btn { width: 56px; height: 38px; border-radius: 12px 12px 0 0; border: none; background-color: var(--accent-color); color: rgba(255, 255, 255, 0.8); font-size: 20px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.05); position: relative; top: 0; }
+        .nav-btn:hover { background-color: var(--accent-hover); color: white; top: -2px; }
+        .nav-btn.active { background-color: #FFF; color: var(--accent-color); box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08); z-index: 10; height: 40px; top: -2px; }
+
+        .main { flex: 1; padding: 16px; overflow-y: auto; overflow-x: hidden; background: var(--main-bg); border-radius: 16px; margin: 0 8px 8px 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); display: flex; flex-direction: column; position: relative; z-index: 8; }
+        .main::-webkit-scrollbar { width: 5px; } .main::-webkit-scrollbar-thumb { background-color: var(--secondary-accent); border-radius: 10px; }
+        
+        .section { display: none; animation: fadeIn 0.3s ease-out; flex-shrink: 0; } .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .header-inline { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed var(--border-color); }
+        .header-inline h2 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -0.5px; color: var(--text-main); }
+        .header-inline .db-checkboxes { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+        .header-inline .db-checkboxes label { display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-sub); background: var(--bg-color); padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 12px; font-weight: 600; transition: all 0.3s ease; }
+        .header-inline .db-checkboxes label:hover { border-color: var(--accent-color); background: #FFF; color: var(--accent-color); }
+        .header-inline select { padding: 4px 8px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-main); background: #FFF; font-weight: 600;}
+        
+        h3 { font-size: 12px; margin: 0 0 12px 0; color: var(--text-sub); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .card { background: var(--card-bg); padding: 16px; border-radius: 14px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03); border: 1px solid var(--border-color); margin-bottom: 14px; transition: 0.2s; }
+        
+        .theme-toggle { position: fixed; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border-color); background: var(--card-bg); color: var(--text-main); font-size: 16px; cursor: pointer; z-index: 999; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15); transition: all 0.3s; }
+        .theme-toggle:hover { transform: scale(1.15); box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+        
+        .two-column { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 14px; }
+        input[type="checkbox"] { accent-color: var(--accent-color); }
+        .date-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; width: 100%; }
+        input[type="date"] { flex: 1 1 120px; min-width: 0; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 12px; color: var(--text-main); background: #FFFAFA; font-family: inherit; }
+        
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; margin-bottom: 8px; letter-spacing: -0.3px; box-sizing: border-box;}
+        .btn-primary { background-color: var(--accent-color); color: var(--btn-text, white); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+        .btn-primary:hover { background-color: var(--accent-hover); color: var(--btn-text-hover, white); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15); }
+        .btn-secondary { background-color: white; border: 2px solid var(--secondary-accent); color: var(--text-main); }
+        .btn-secondary:hover { background-color: var(--bg-color); border-color: var(--accent-color); color: var(--accent-color); transform: translateY(-1px); }
+        .btn-toggle { background: transparent; color: var(--text-sub); display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 4px; font-size: 12px; border: none; cursor: pointer; font-weight: 600; }
+        .btn-toggle:hover { color: var(--accent-color); }
+        
+        .history-list { margin-top: 10px; border-top: 1px dashed var(--border-color); padding-top: 10px; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 11px; color: var(--text-sub); }
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+        .success { background: var(--success-bg); color: var(--success-text); } .fail { background: var(--fail-bg); color: var(--fail-text); }
+        
+        .log-box { background: var(--log-bg); color: var(--log-text); padding: 14px; border-radius: 12px; font-family: 'D2Coding', 'Menlo', monospace; font-size: 11px; line-height: 1.6; height: 180px; overflow-y: auto; overflow-x: hidden; white-space: pre-wrap; margin-top: 12px; display: none; }
+        .log-box.active { display: block; } .log-box::-webkit-scrollbar { width: 4px; } .log-box::-webkit-scrollbar-thumb { background-color: #555; border-radius: 10px; }
+        
+        .btn-cancel { display: none; background: #FFF5F5; border: 1px solid #FC8181; color: #E53E3E; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 10px; width: 100%; text-align: center; transition: 0.2s; }
+        .btn-cancel:hover { background: #FED7D7; transform: translateY(-1px); }
+
+        @media (max-width: 380px) {
+            .nav-btn { width: 48px; font-size: 18px; }
+            .header-inline h2 { font-size: 15px; }
+            .header-inline .db-checkboxes label { padding: 4px 6px; font-size: 11px; }
+            .card { padding: 14px; } h3 { margin-bottom: 10px; }
+            .btn { font-size: 12px; padding: 10px; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="top-nav">
+        <button class="nav-btn active" onclick="showTab('backup', event)" title="데이터 동기화">🌸</button>
+        <button class="nav-btn" onclick="showTab('generator', event)" title="페이지 생성 및 연결">🎀</button>
+        <button class="nav-btn" onclick="showTab('update', event)" title="버전 및 업데이트">⚙️</button>
+    </div>
+    <button class="theme-toggle" id="darkModeBtn" onclick="toggleDarkMode()" title="라이트/다크 모드 전환">🌙</button>
+
+    <div class="main">
+        <!-- 탭 1: 백업 동기화 (Data Sync) -->
+        <div id="tab-backup" class="section active">
+            <div class="header-inline">
+                <h2>Data Sync</h2>
+                <div class="db-checkboxes">
+                    <label><input type="checkbox" id="db-all" checked onchange="toggleAllDBs()"> ALL</label>
+                    <label title="Personal"><input type="checkbox" class="db-check" value="personal" onchange="toggleSingleDB()"> Personal</label>
+                    <label title="Finance"><input type="checkbox" class="db-check" value="finance" onchange="toggleSingleDB()"> Finance</label>
+                    <label title="Media"><input type="checkbox" class="db-check" value="media" onchange="toggleSingleDB()"> Media</label>
+                </div>
+            </div>
+            
+            <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 14px; text-align: center;">
+                💡 체크박스를 선택하여 백업할 데이터베이스를 지정할 수 있습니다. 템플릿에 연결된 DB만 알아서 백업됩니다.
+            </div>
+
+            <div class="two-column">
+                <div class="card" style="margin-bottom: 0;">
+                    <h3>Quick Action (-3M ~ +2M)</h3>
+                    <button class="btn btn-primary" onclick="runBackup('today')">Today Update (최근 기록 동기화)</button>
+                    <button class="btn btn-secondary" onclick="runBackup('recent')">Recent Resync (전체 재동기화)</button>
+                </div>
+                <div class="card" style="margin-bottom: 0;">
+                    <h3>Range Restore (특정 구간 복구)</h3>
+                    <div class="date-container">
+                        <input type="date" id="startDate" title="시작일 지정">
+                        <input type="date" id="endDate" title="종료일 지정">
+                    </div>
+                    <button class="btn btn-secondary" onclick="runRangeBackup()">지정 구간 백업 실행</button>
+                    <button id="cancel-btn-backup" class="btn-cancel" onclick="cancelProcess()">🛑 진행 강제 중지</button>
+                </div>
+            </div>
+            <div class="card" style="padding: 10px 14px;">
+                <button class="btn-toggle" style="margin-bottom: 0;" onclick="toggleHistory('backup')"><span>Sync History & Logs</span> <span id="icon-backup">▼</span></button>
+                <div id="history-container-backup" class="history-list" style="display: none;"></div>
+                <div class="log-box" id="logBox-backup">대기 중... 작업을 실행하면 여기에 실시간 로그가 표시됩니다.</div>
+            </div>
+        </div>
+
+        <!-- 탭 2: 뼈대 생성 및 연결 (Generator & Linker) -->
+        <div id="tab-generator" class="section">
+            <div class="header-inline">
+                <h2>Generator & Linker</h2>
+                <select id="targetYear"></select>
+            </div>
+            
+            <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 14px; text-align: center;">
+                💡 새로운 연도의 페이지를 구축할 때 <b>STEP 1 ➔ STEP 2</b> 순서대로 번호를 따라 진행해주세요.
+            </div>
+
+            <div class="two-column">
+                <div class="card" style="margin-bottom: 0;">
+                    <h3 style="color: var(--accent-hover); margin-top: 0; margin-bottom: 10px;">STEP 1. 페이지 뼈대 자동 생성</h3>
+                    <button class="btn btn-primary" onclick="generatePages('year_month')">1. Year & Monthly 생성</button>
+                    <button class="btn btn-primary" onclick="generatePages('weeks')">2. 1년 치 Weekly 생성</button>
+                    <button class="btn btn-secondary" onclick="generatePages('daily')" style="margin-bottom: 0;">⚠️ 3. 1년 치 Daily 생성 (시간 소요)</button>
+                </div>
+                <div class="card" style="margin-bottom: 0;">
+                    <h3 style="color: var(--success-text); margin-top: 0; margin-bottom: 10px;">STEP 2. 뼈대 계층 자동 연결</h3>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" onclick="runLinker('year_month')">1. Month ↔ Year 연결</button>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" onclick="runLinker('weeks')">2. Week ↔ Year/Month 연결</button>
+                    <button class="btn btn-secondary" style="margin-bottom: 0; border-color: var(--success-text); color: var(--success-text);" onclick="runLinker('daily')">✨ 3. Daily 대량 연결</button>
+                    <div style="margin-top:10px; text-align:center;">
+                        <div id="gen-status" style="font-size:12px; font-weight:600;"></div>
+                        <button id="cancel-btn-gen" class="btn-cancel" onclick="cancelProcess()">🛑 진행 강제 중지</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card" style="padding: 10px 14px;">
+                <button class="btn-toggle" style="margin-bottom: 0;" onclick="toggleHistory('gen')"><span>Generation Logs</span> <span id="icon-gen">▼</span></button>
+                <div id="history-container-gen" class="history-list" style="display: none;"></div>
+                <div class="log-box" id="logBox-gen">대기 중...</div>
+            </div>
+        </div>
+
+        <!-- 탭 3: 업데이트 (Update & Info) -->
+        <div id="tab-update" class="section">
+            <div class="header-inline">
+                <h2>위젯 버전 정보</h2>
+            </div>
+            
+            <div class="card" style="padding: 20px; text-align: center;">
+                <div style="margin-bottom: 16px;">
+                    <span style="font-size: 12px; color: var(--text-sub);">현재 설치된 버전</span>
+                    <div style="font-weight: 800; font-size: 24px; color: var(--text-main); margin-top: 4px;" id="current-version-display">v1.0.0</div>
+                </div>
+                
+                <div id="version-status-badge" class="badge" style="display: inline-block; padding: 6px 12px; font-size: 12px; margin-bottom: 16px; background: #eee; color: #888;">
+                    버전 확인 중...
+                </div>
+
+                <div id="update-notice-box" style="display: none; background: var(--warn-bg); border: 1px solid #FFCC80; padding: 16px; border-radius: 12px; text-align: left; margin-bottom: 12px;">
+                    <div style="font-size: 13px; font-weight: 700; color: var(--warn-text); margin-bottom: 8px;">
+                        🎉 새로운 업데이트(v<span id="latest-ver-text"></span>)가 출시되었습니다!
+                    </div>
+                    <div id="patch-notes-text" style="font-size: 12px; color: rgba(0,0,0,0.6); margin-bottom: 14px; white-space: pre-line; line-height: 1.5;">
+                        업데이트 내역을 불러오는 중...
+                    </div>
+                    <button class="btn btn-primary" style="margin-bottom: 0;" onclick="openUpdatePage()">
+                        ⚡ Vercel에서 최신 버전 적용하기
+                    </button>
+                </div>
+                
+                <div style="font-size: 11px; color: var(--text-sub); line-height: 1.5;">
+                    문제가 발생하거나 건의사항이 있으신 경우,<br>템플릿 구매처로 문의를 남겨주시면 감사하겠습니다.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 🚀 환경 설정 (버전 및 깃허브 경로)
+        // ==========================================
+        const CURRENT_VERSION = '1.0.0'; 
+        // ⚠️ 아래 주소를 본인의 깃허브 저장소 주소로 반드시 변경해주세요! (예: 'my-github-id/notion-backup-widget')
+        const GITHUB_REPO = 'huinaology/Huinaology-Auto-Backup'; 
+        
+        let isCancelled = false;
+        const urlParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+        const secretKey = urlParams.get('key') || hashParams.get('key') || '';
+
+        if (!secretKey) {
+            document.addEventListener('DOMContentLoaded', () => {
+                const main = document.querySelector('.main');
+                if (main) {
+                    const warn = document.createElement('div');
+                    warn.style.cssText = 'background:#FBE8E8;color:#C55353;padding:12px;border-radius:10px;margin-bottom:12px;font-size:12px;font-weight:600;text-align:center;';
+                    warn.innerHTML = '⚠️ 인증 키가 감지되지 않았습니다.<br>임베드 URL 끝에 <b>#key=비밀번호</b> 를 추가해주세요.';
+                    main.insertBefore(warn, main.firstChild);
+                }
+            });
+        }
+        
+        // 버전 체크 로직 (GitHub Releases API)
+        async function checkWidgetUpdate() {
+            document.getElementById('current-version-display').innerText = `v${CURRENT_VERSION}`;
+            try {
+                const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+                if (!res.ok) {
+                    document.getElementById('version-status-badge').innerText = '✅ 최신 버전을 사용 중입니다.';
+                    document.getElementById('version-status-badge').className = 'badge success';
+                    return;
+                }
+                const data = await res.json();
+                const latestVersion = data.tag_name.replace('v', '');
+                
+                if (latestVersion !== CURRENT_VERSION) {
+                    document.getElementById('version-status-badge').innerText = '💡 업데이트 가능';
+                    document.getElementById('version-status-badge').className = 'badge fail';
+                    
+                    document.getElementById('latest-ver-text').innerText = latestVersion;
+                    document.getElementById('patch-notes-text').innerText = data.body || '기능 개선 및 버그 수정이 포함되어 있습니다.';
+                    document.getElementById('update-notice-box').style.display = 'block';
+                } else {
+                    document.getElementById('version-status-badge').innerText = '✅ 최신 버전을 사용 중입니다.';
+                    document.getElementById('version-status-badge').className = 'badge success';
+                }
+            } catch (e) {
+                document.getElementById('version-status-badge').innerText = '버전 확인 불가';
+            }
+        }
+
+        function openUpdatePage() {
+            window.open(`https://github.com/${GITHUB_REPO}/releases/latest`, '_blank');
+        }
+
+        function updateTheme() {
+            const root = document.documentElement;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            root.style.setProperty('--bg-color', isDark ? '#23192D' : '#F7F3FC'); 
+            root.style.setProperty('--accent-color', '#F4C2D7'); 
+            root.style.setProperty('--accent-hover', '#E0B0C5'); 
+            root.style.setProperty('--secondary-accent', isDark ? '#3D2A4F' : '#DCD0FF');
+            root.style.setProperty('--border-color', isDark ? '#3D3545' : '#EBE0F5');
+            root.style.setProperty('--btn-text', 'white');
+            root.style.setProperty('--btn-text-hover', 'white');
+        }
+
+        function toggleAllDBs() { 
+            const allBtn = document.getElementById('db-all'); 
+            if (allBtn.checked) { document.querySelectorAll('.db-check').forEach(cb => cb.checked = false); } 
+            else { allBtn.checked = true; } 
+            updateTheme(); 
+        }
+        
+        function toggleSingleDB() { 
+            const allBtn = document.getElementById('db-all'); 
+            const singles = document.querySelectorAll('.db-check'); 
+            const checkedCount = Array.from(singles).filter(cb => cb.checked).length; 
+            if (checkedCount === 3 || checkedCount === 0) { allBtn.checked = true; singles.forEach(cb => cb.checked = false); } 
+            else { allBtn.checked = false; } 
+            updateTheme(); 
+        }
+        
+        function cancelProcess() { 
+            isCancelled = true; 
+            document.querySelectorAll('.btn-cancel').forEach(btn => { btn.innerText = "⏳ 중지 처리 중..."; btn.style.opacity = "0.6"; }); 
+        }
+        
+        function toggleCancelBtn(show) { 
+            document.querySelectorAll('.btn-cancel').forEach(btn => { 
+                if (show) { btn.style.display = 'inline-block'; btn.innerText = "🛑 진행 강제 중지"; btn.style.opacity = "1"; } 
+                else { btn.style.display = 'none'; } 
+            }); 
+        }
+
+        window.onload = function () {
+            const yearSelect = document.getElementById('targetYear');
+            const currentYear = new Date().getFullYear();
+            
+            for (let y = 2024; y <= 2035; y++) {
+                const opt = document.createElement('option'); 
+                opt.value = y; 
+                if (y === currentYear) {
+                    opt.innerText = y + "년 (올해)";
+                    opt.selected = true;
+                    opt.style.color = "#E53E3E"; 
+                    opt.style.fontWeight = "900"; 
+                } else {
+                    opt.innerText = y + "년";
+                }
+                yearSelect.appendChild(opt);
+            }
+            
+            updateHistoryUI('backup'); updateHistoryUI('gen'); updateTheme();
+            if (localStorage.getItem('darkMode') === 'true') { document.documentElement.setAttribute('data-theme', 'dark'); const btn = document.getElementById('darkModeBtn'); if (btn) btn.innerText = '☀️'; }
+            
+            checkWidgetUpdate(); // 페이지 로드 시 버전 체크
+        };
+
+        function showTab(id, event) {
+            document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+            const tabEl = document.getElementById('tab-' + id);
+            if (tabEl) tabEl.classList.add('active');
+            
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            if (event) { event.currentTarget.classList.add('active'); }
+            
+            const root = document.documentElement; 
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            
+            if (id === 'generator') { 
+                root.style.setProperty('--bg-color', isDark ? '#1A2520' : '#F6F9F8'); 
+                root.style.setProperty('--accent-color', isDark ? '#6BA897' : '#A7CDC0'); 
+                root.style.setProperty('--accent-hover', isDark ? '#4A8877' : '#91BBAD'); 
+                root.style.setProperty('--secondary-accent', isDark ? '#3A5A4A' : '#CDEAE0'); 
+            } else if (id === 'update') {
+                root.style.setProperty('--bg-color', isDark ? '#1A1D28' : '#F5F7FB'); 
+                root.style.setProperty('--accent-color', isDark ? '#7B8DC5' : '#A6B4E5'); 
+                root.style.setProperty('--accent-hover', isDark ? '#5A70B0' : '#8FA0D9'); 
+                root.style.setProperty('--secondary-accent', isDark ? '#3A4060' : '#CFD8F6'); 
+            } else { updateTheme(); } 
+        }
+
+        function toggleDarkMode() {
+            const root = document.documentElement; const isDark = root.getAttribute('data-theme') === 'dark'; const btn = document.getElementById('darkModeBtn');
+            if (isDark) { root.removeAttribute('data-theme'); if (btn) btn.innerText = '🌙'; localStorage.setItem('darkMode', 'false'); } else { root.setAttribute('data-theme', 'dark'); if (btn) btn.innerText = '☀️'; localStorage.setItem('darkMode', 'true'); }
+            const activeSection = document.querySelector('.section.active'); if (activeSection) { const tabId = activeSection.id.replace('tab-', ''); showTab(tabId); }
+        }
+
+        function toggleHistory(id) { 
+            const historyEl = document.getElementById(`history-container-${id}`); 
+            const logEl = document.getElementById(`logBox-${id}`); 
+            const iconEl = document.getElementById(`icon-${id}`); 
+            if (historyEl.style.display === 'none') { historyEl.style.display = 'block'; logEl.classList.add('active'); iconEl.innerText = '▲'; } 
+            else { historyEl.style.display = 'none'; logEl.classList.remove('active'); iconEl.innerText = '▼'; } 
+        }
+        
+        function getTargetDBs() { 
+            if (document.getElementById('db-all').checked) return 'all'; 
+            const checked = Array.from(document.querySelectorAll('.db-check:checked')).map(cb => cb.value); 
+            return checked.length > 0 ? checked.join(',') : 'all'; 
+        }
+        
+        function updateHistoryUI(type) {
+            const history = JSON.parse(localStorage.getItem(`notionHistory_${type}`) || '[]');
+            const container = document.getElementById(`history-container-${type}`);
+            if (history.length === 0) { container.innerHTML = '<div style="padding:5px; text-align:center; font-size:11px;">기록 없음</div>'; return; }
+            container.innerHTML = history.map(h => `<div class="history-item"><span>${h.date} ${h.time} [${h.mode}]</span><span class="badge ${h.success ? 'success' : 'fail'}">${h.success ? 'OK' : 'ERR'}</span></div>`).join('');
+        }
+        function saveHistory(type, mode, success) {
+            const history = JSON.parse(localStorage.getItem(`notionHistory_${type}`) || '[]'); const now = new Date();
+            const dateStr = now.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }); const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            history.unshift({ date: dateStr, time: timeStr, mode: mode, success: success }); if (history.length > 5) history.pop();
+            localStorage.setItem(`notionHistory_${type}`, JSON.stringify(history)); updateHistoryUI(type);
+        }
+        function updateLogBoxes(text, isAppend = false) { document.querySelectorAll('.log-box').forEach(box => { if (isAppend) box.innerText += text; else box.innerText = text; }); }
+
+        async function runBackup(mode) {
+            let targetStr = getTargetDBs(); let dbsToRun = [];
+            if (targetStr === 'all') { dbsToRun = ['personal', 'finance', 'media']; } else { dbsToRun = targetStr.split(','); }
+            isCancelled = false; toggleCancelBtn(true);
+            document.getElementById('history-container-backup').style.display = 'block'; document.getElementById('logBox-backup').classList.add('active'); document.getElementById('icon-backup').innerText = '▲';
+            updateLogBoxes(`🚀 [${mode}] 안전 순차 동기화 시작 (총 ${dbsToRun.length}개 DB)\n\n`);
+            let allSuccess = true;
+            for (let i = 0; i < dbsToRun.length; i++) {
+                if (isCancelled) { updateLogBoxes(`\n\n🛑 사용자에 의해 진행이 중지되었습니다.`, true); allSuccess = false; break; }
+                let currentDb = dbsToRun[i]; updateLogBoxes(`\n▶️ [${i + 1}/${dbsToRun.length}] ${currentDb.toUpperCase()} DB 동기화 요청 중...`, true);
+                try {
+                    const cacheBuster = `&t=${new Date().getTime()}&key=${secretKey}`;
+                    const url = `/api/cron?mode=${mode}&target_dbs=${currentDb}${cacheBuster}`;
+                    const res = await fetch(url); const text = await res.text();
+                    try {
+                        const data = JSON.parse(text);
+                        if (data.success) { if (data.logs && data.logs.length > 0) updateLogBoxes(` ➡️ ✅ [OK]\n` + data.logs.join('\n'), true); else updateLogBoxes(` ➡️ ✅ [OK] 완료`, true); } else { updateLogBoxes(` ➡️ ❌ 서버 에러: ${data.error}`, true); allSuccess = false; break; }
+                    } catch (parseErr) { updateLogBoxes(` ➡️ ❌ 서버 응답 오류`, true); allSuccess = false; break; }
+                } catch (err) { updateLogBoxes(` ➡️ ❌ 네트워크 에러: ${err.message}`, true); allSuccess = false; break; }
+                await new Promise(r => setTimeout(r, 1500));
+            }
+            toggleCancelBtn(false);
+            if (allSuccess) { updateLogBoxes(`\n\n🎉 [성공] 모든 DB 동기화가 안전하게 완료되었습니다!`, true); saveHistory('backup', mode, true); } else if (!isCancelled) { updateLogBoxes(`\n\n🚨 [중단] 동기화 중 에러가 발생했습니다.`, true); saveHistory('backup', mode, false); }
+        }
+
+        async function runRangeBackup() {
+            const startInput = document.getElementById('startDate').value; const endInput = document.getElementById('endDate').value;
+            if (!startInput || !endInput) return alert("시작일과 종료일을 모두 지정해주세요.");
+            let currentStart = new Date(startInput); let finalEnd = new Date(endInput);
+            if (currentStart > finalEnd) return alert("시작일이 종료일보다 늦을 수 없습니다.");
+            isCancelled = false; toggleCancelBtn(true);
+            document.getElementById('history-container-backup').style.display = 'block'; document.getElementById('logBox-backup').classList.add('active'); document.getElementById('icon-backup').innerText = '▲';
+            updateLogBoxes(`🚀 [Range Restore] 구간 백업 시작...\n\n`);
+            let allSuccess = true;
+            while (currentStart <= finalEnd) {
+                if (isCancelled) { updateLogBoxes(`\n\n🛑 사용자에 의해 진행이 중지되었습니다.`, true); allSuccess = false; break; }
+                let chunkEnd = new Date(currentStart.getFullYear(), currentStart.getMonth() + 1, 0); if (chunkEnd > finalEnd) chunkEnd = finalEnd;
+                const offsetStart = new Date(currentStart.getTime() - (currentStart.getTimezoneOffset() * 60000)); const startStr = offsetStart.toISOString().split('T')[0];
+                const offsetEnd = new Date(chunkEnd.getTime() - (chunkEnd.getTimezoneOffset() * 60000)); const endStr = offsetEnd.toISOString().split('T')[0];
+                updateLogBoxes(`\n▶️ [${startStr} ~ ${endStr}] 서버 요청 중...`, true);
+                try {
+                    const cacheBuster = `&t=${new Date().getTime()}&key=${secretKey}`; const url = `/api/cron?mode=range&start_date=${startStr}&end_date=${endStr}&target_dbs=${getTargetDBs()}${cacheBuster}`;
+                    const res = await fetch(url); const data = await res.json();
+                    if (data.success) { if (data.logs) updateLogBoxes(` ➡️ ✅ [OK] ` + data.logs.join(' / '), true); else if (data.message) updateLogBoxes(` ➡️ ✅ [OK] ${data.message}`, true); else updateLogBoxes(` ➡️ ✅ [OK] 완료!`, true); } else { updateLogBoxes(` ➡️ ❌ 에러: ${data.error}`, true); allSuccess = false; break; }
+                } catch (err) { updateLogBoxes(` ➡️ ❌ 네트워크 에러: ${err.message}`, true); allSuccess = false; break; }
+                currentStart = new Date(chunkEnd); currentStart.setDate(currentStart.getDate() + 1); await new Promise(r => setTimeout(r, 1000));
+            }
+            toggleCancelBtn(false);
+            if (allSuccess) { updateLogBoxes(`\n\n🎉 [성공] 지정 구간 복구 백업 완료!`, true); saveHistory('backup', 'Range Restore', true); } else if (!isCancelled) { updateLogBoxes(`\n\n🚨 [중단] 에러 발생.`, true); saveHistory('backup', 'Range Restore', false); }
+        }
+
+        async function callApi(url, mode, isGenerator = false) {
+            const statusDiv = document.getElementById('gen-status');
+            if (isGenerator) {
+                document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
+                statusDiv.innerText = `⏳ [${mode}] 실행 중...`; statusDiv.style.color = "var(--text-main)"; updateLogBoxes(`🚀 [${mode}] 서버 요청 완료. 잠시만 기다려주세요...\n\n`); toggleCancelBtn(true);
+            }
+            try {
+                const separator = url.includes('?') ? '&' : '?'; const cacheBuster = `${separator}t=${new Date().getTime()}&key=${secretKey}`;
+                const res = await fetch(url + cacheBuster); const data = await res.json();
+                if (data.success) {
+                    if (data.logs) updateLogBoxes(`\n[OK] ` + data.logs.join(' / '), true); else if (data.message) updateLogBoxes(`\n[OK] ${data.message}`, true);
+                    if (isGenerator) { statusDiv.innerText = "✅ 실행 완료!"; statusDiv.style.color = "var(--success-text)"; saveHistory('gen', mode, true); } 
+                    toggleCancelBtn(false); return true;
+                } else {
+                    updateLogBoxes(`\n❌ 에러 발생: ${data.error}`, true);
+                    if (isGenerator) { statusDiv.innerText = "❌ 실패 (로그 확인)"; statusDiv.style.color = "var(--fail-text)"; saveHistory('gen', mode, false); }
+                    toggleCancelBtn(false); return false;
+                }
+            } catch (err) {
+                updateLogBoxes(`\n❌ 네트워크 에러: ${err.message}`, true);
+                if (isGenerator) { statusDiv.innerText = "❌ 네트워크 에러"; saveHistory('gen', mode, false); }
+                toggleCancelBtn(false); return false;
+            }
+        }
+
+        function generatePages(type) { 
+            const year = document.getElementById('targetYear').value; 
+            callApi(`/api/generate?type=${type}&year=${year}`, `gen-${type}`, true); 
+        }
+        
+        function runLinker(target) { 
+            const year = document.getElementById('targetYear').value; 
+            callApi(`/api/generate?type=link&target=${target}&year=${year}`, `link-${target}`, true); 
+        }
+
+    </script>
+</body>
+</html>
