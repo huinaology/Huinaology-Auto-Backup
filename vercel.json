@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "WIDGET_SECRET": "",
+    "NOTION_TOKEN": "",
+    "ANNUAL_DB_ID": "",
+    "MONTHLY_DB_ID": "",
+    "WEEKLY_DB_ID": "",
+    "DAILY_DB_ID": "",
+    "FIN_MONTHLY_DB_ID": "",
+    "FIN_WEEKLY_DB_ID": "",
+    "PERSONAL_MASTER_DB_ID": "",
+    "FINANCE_MASTER_DB_ID": "",
+    "MEDIA_MASTER_DB_ID": ""
+  },
+  "crons": [
+    {
+      "path": "/api/cron?mode=today&slot=morning&key=yliaster-autobackup",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=evening&key=yliaster-autobackup",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/timeline?mode=auto&key=yliaster-autobackup",
+      "schedule": "5 22 * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors *;"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "s-maxage=0, no-store, no-cache, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
