@@ -204,9 +204,10 @@
             </div>
         </div>
 
-        <!-- 탭 4: Settings (버전 비교 및 깃허브 링크 기능 포함) -->
+        <!-- 탭 4: Settings (버전 비교 및 DB 체크 테스트 영역 포함) -->
         <div id="tab-update" class="section">
             <div class="header-inline"><h2>Settings & Info</h2></div>
+            
             <div class="card" style="padding: 20px; text-align: center;">
                 <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 4px;">현재 설치된 버전</div>
                 <div style="font-weight: 800; font-size: 20px; margin-bottom: 12px; color: var(--text-main);" id="currentVersionText">v1.0.1</div>
@@ -220,6 +221,16 @@
                 <div style="font-size: 11px; color: var(--text-sub); line-height: 1.4;">
                     문제가 발생하거나 건의사항이 있는 경우,<br>템플릿 구매처로 문의를 남겨주시면 감사합니다.
                 </div>
+            </div>
+
+            <!-- 새로 추가된 DB 연결 테스트 영역 -->
+            <div class="card" style="margin-top: 14px; text-align: left;">
+                <h3 style="margin-top: 0; color: var(--accent-hover);">🔌 DB 연결 상태 확인</h3>
+                <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 10px; line-height: 1.4;">
+                    모든 환경 변수(ID)가 잘 입력되었고 노션과 정상적으로 연결되었는지 테스트합니다.
+                </div>
+                <button class="btn btn-secondary" id="db-check-btn" onclick="checkAllDBs()">🔍 일괄 연결 테스트 실행</button>
+                <div id="db-check-results" style="margin-top: 10px; font-size: 11px; background: var(--bg-color); padding: 10px; border-radius: 8px; display: none;"></div>
             </div>
         </div>
     </div>
@@ -535,6 +546,47 @@
             let allOk = true;
             for (let m = 1; m <= 12; m++) { if (isCancelled) { allOk = false; break; } const ok = await runTimelineRestoreMonth(m, true); if (!ok) { allOk = false; break; } await new Promise(r => setTimeout(r, 1000)); }
             toggleCancelBtn(false); if (allOk) tlLog(`\n\n🎉 완료!`, true);
+        }
+
+        // 새롭게 추가된 일괄 DB 연결 체크 로직
+        async function checkAllDBs() {
+            const btn = document.getElementById('db-check-btn');
+            const resultBox = document.getElementById('db-check-results');
+            
+            btn.innerText = '⏳ 테스트 진행 중...';
+            btn.style.opacity = '0.7';
+            resultBox.style.display = 'block';
+            resultBox.innerHTML = '노션 서버와 통신 중입니다... (최대 10초 소요)';
+
+            try {
+                const res = await fetch(`/api/check?t=${Date.now()}`);
+                const data = await res.json();
+
+                if (data.details && data.details.length > 0) {
+                    let html = `<ul style="list-style:none; padding:0; margin:0;">`;
+                    data.details.forEach(item => {
+                        const color = item.status === 'ok' ? 'var(--success-text)' : 'var(--fail-text)';
+                        html += `<li style="margin-bottom: 4px; color: ${color};">
+                                    <strong>${item.name}</strong> : ${item.message}
+                                 </li>`;
+                    });
+                    html += `</ul>`;
+                    
+                    if (data.success) {
+                        html += `<div style="margin-top: 8px; font-weight: bold; color: var(--success-text);">🎉 모든 DB가 완벽하게 연결되었습니다!</div>`;
+                    } else {
+                        html += `<div style="margin-top: 8px; font-weight: bold; color: var(--fail-text);">⚠️ 에러가 발생한 항목의 Vercel 환경 변수나 노션 연결 권한을 확인해 주세요.</div>`;
+                    }
+                    resultBox.innerHTML = html;
+                } else {
+                    resultBox.innerHTML = `❌ 오류: ${data.message || '응답을 받을 수 없습니다.'}`;
+                }
+            } catch (e) {
+                resultBox.innerHTML = `❌ 네트워크 에러가 발생했습니다.`;
+            } finally {
+                btn.innerText = '🔍 일괄 연결 테스트 다시 실행';
+                btn.style.opacity = '1';
+            }
         }
     </script>
 </body>
