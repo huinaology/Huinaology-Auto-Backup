@@ -17,7 +17,7 @@
     "PERSONAL_MASTER_DB_ID": "",
     "FINANCE_MASTER_DB_ID": "",
     "MEDIA_MASTER_DB_ID": "",
-    "TIM_DB_ID": ""
+    "TIMELINE_DB_ID": ""
   },
   "crons": [
     {
