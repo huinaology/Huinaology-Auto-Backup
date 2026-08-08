@@ -11,7 +11,6 @@
             --text-main: #6D6373; --text-sub: #A89FAA; --border-color: #EBE0F5; --card-bg: #FFFFFF;
             --main-bg: #FFF; --success-bg: #E3F6F3; --success-text: #2D8B7E; --fail-bg: #FBE8E8;
             --fail-text: #C55353; --warn-bg: #FFF3E0; --warn-text: #E65100; --log-bg: #2D2D2D; --log-text: #E0E0E0;
-            --pomo-timer-text: #b44e54; 
         }
 
         [data-theme="dark"] {
@@ -25,9 +24,9 @@
 
         /* 탭 상단 좌측 정렬 */
         .top-nav { display: flex; gap: 6px; padding: 12px 16px 0 16px; background: transparent; z-index: 5; position: relative; top: 2px; justify-content: flex-start; }
-        .nav-btn { width: 42px; height: 38px; border-radius: 12px 12px 0 0; border: none; background-color: var(--accent-color); color: rgba(255, 255, 255, 0.8); font-size: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.05); position: relative; top: 0; }
+        .nav-btn { width: 48px; height: 36px; border-radius: 10px 10px 0 0; border: none; background-color: var(--accent-color); color: rgba(255, 255, 255, 0.8); font-size: 18px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.05); position: relative; top: 0; }
         .nav-btn:hover { background-color: var(--accent-hover); color: white; top: -2px; }
-        .nav-btn.active { background-color: #FFF; color: var(--accent-color); box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08); z-index: 10; height: 40px; top: -2px; }
+        .nav-btn.active { background-color: #FFF; color: var(--accent-color); box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08); z-index: 10; height: 38px; top: -2px; }
 
         .main { flex: 1; padding: 16px; overflow-y: auto; overflow-x: hidden; background: var(--main-bg); border-radius: 16px; border-top-left-radius: 4px; margin: 0 4px 4px 4px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); display: flex; flex-direction: column; position: relative; z-index: 8; }
         .main::-webkit-scrollbar { width: 5px; } .main::-webkit-scrollbar-thumb { background-color: var(--secondary-accent); border-radius: 10px; }
@@ -38,14 +37,11 @@
         .header-inline { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed var(--border-color); }
         .header-inline h2 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -0.5px; color: var(--text-main); }
         
-        /* 아이콘 필터 바 스타일 (마우스 오버 시 텍스트 유지/툴팁) */
-        .db-checkboxes { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
-        .db-checkboxes label { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; cursor: pointer; background: var(--bg-color); border-radius: 8px; border: 1px solid var(--border-color); font-size: 14px; transition: all 0.3s ease; position: relative; }
-        .db-checkboxes label input { display: none; }
-        .db-checkboxes label:hover { border-color: var(--accent-color); background: #FFF; }
-        .db-checkboxes label:has(input:checked) { background: var(--accent-color); border-color: var(--accent-hover); }
-
-        .header-inline select { padding: 4px 8px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-main); background: #FFF; font-weight: 600; }
+        .db-checkboxes { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+        .db-checkboxes label { display: flex; align-items: center; gap: 3px; cursor: pointer; color: var(--text-sub); background: var(--bg-color); padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 11px; font-weight: 600; transition: all 0.3s ease; }
+        .db-checkboxes label:hover { border-color: var(--accent-color); background: #FFF; color: var(--accent-color); }
+        .db-icon { width: 15px; height: 15px; vertical-align: middle; }
+        .header-inline select { padding: 4px 8px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-main); background: #FFF; }
         
         h3 { font-size: 12px; margin: 0 0 12px 0; color: var(--text-sub); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
         .card { background: var(--card-bg); padding: 16px; border-radius: 14px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03); border: 1px solid var(--border-color); margin-bottom: 14px; transition: 0.2s; }
@@ -53,7 +49,6 @@
         .theme-toggle { position: fixed; top: 10px; right: 10px; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border-color); background: var(--card-bg); color: var(--text-main); font-size: 16px; cursor: pointer; z-index: 999; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15); transition: all 0.3s; }
         .theme-toggle:hover { transform: scale(1.15); box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
         
-        .nav-divider { width: 2px; height: 24px; background: var(--border-color); align-self: center; margin: 0 2px; border-radius: 1px; opacity: 0.6; }
         .two-column { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 14px; }
         input[type="checkbox"] { accent-color: var(--accent-color); }
         .date-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; width: 100%; }
@@ -86,13 +81,10 @@
 <body>
 
     <div class="top-nav">
-        <button class="nav-btn" onclick="showTab('pomodoro', event)" title="Pomodoro 타이머">🍅</button>
-        <button class="nav-btn" onclick="showTab('tasks', event)" title="Google Tasks">✅</button>
-        <button class="nav-btn" onclick="showTab('timeview', event)" title="24시간 타임라인 뷰">📊</button>
-        <span class="nav-divider"></span>
         <button class="nav-btn active" onclick="showTab('backup', event)" title="백업 동기화">🌸</button>
         <button class="nav-btn" onclick="showTab('generator', event)" title="페이지 자동 생성 및 연결">🎀</button>
         <button class="nav-btn" onclick="showTab('timeline', event)" title="Daily Timeline 생성">🕐</button>
+        <button class="nav-btn" onclick="showTab('update', event)" title="설정 및 정보">⚙️</button>
     </div>
     <button class="theme-toggle" id="darkModeBtn" onclick="toggleDarkMode()" title="라이트/다크 모드 전환">🌙</button>
 
@@ -102,35 +94,34 @@
             <div class="header-inline">
                 <h2>Data Sync</h2>
                 <div class="db-checkboxes">
-                    <label title="ALL"><input type="checkbox" id="db-all" checked onchange="toggleAllDBs()">✨</label>
-                    <label title="Personal"><input type="checkbox" class="db-check" value="personal" onchange="toggleSingleDB()">🌸</label>
-                    <label title="Finance"><input type="checkbox" class="db-check" value="finance" onchange="toggleSingleDB()">💰</label>
-                    <label title="Media"><input type="checkbox" class="db-check" value="media" onchange="toggleSingleDB()">🎬</label>
+                    <label><input type="checkbox" id="db-all" checked onchange="toggleAllDBs()"> ALL</label>
+                    <label title="Personal"><input type="checkbox" class="db-check" value="personal" onchange="toggleSingleDB()"> <img src="https://api.iconify.design/lucide/star.svg?color=%23EAB308" class="db-icon"></label>
+                    <label title="Finance"><input type="checkbox" class="db-check" value="finance" onchange="toggleSingleDB()"> <img src="https://api.iconify.design/lucide/circle-dollar-sign.svg?color=%2322C55E" class="db-icon"></label>
+                    <label title="Media"><input type="checkbox" class="db-check" value="media" onchange="toggleSingleDB()"> <img src="https://api.iconify.design/lucide/film.svg?color=%23EC4899" class="db-icon"></label>
                 </div>
             </div>
-
             <div class="two-column">
                 <div class="card" style="margin-bottom: 0;">
                     <h3>Quick Action (-3M ~ +2M)</h3>
                     <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 8px; line-height: 1.4;">매일 오전/오후 7시 2번씩 Today Update가 자동으로 연결됩니다. 필요에 따라 수동으로 연결하세요.</div>
-                    <button class="btn btn-primary" title="오늘 날짜에 해당되는 데이터를 수동으로 연결합니다." onclick="runBackup('today')">Today Update</button>
-                    <button class="btn btn-secondary" title="오늘 날짜 기준으로 과거 3개월, 이후 2개월 일정을 확인해 연결합니다" onclick="runBackup('recent')">Recent Resync (최근 일정 동기화)</button>
+                    <button class="btn btn-primary" title="오늘 날짜에 해당되는 데이터를 수동으로 연결합니다." onclick="runBackup('today')">Today Update (Auto Mode)</button>
+                    <button class="btn btn-secondary" title="오늘 날짜 기준으로 과거 3개월, 이후 2개월 일정을 확인해 연결합니다" onclick="runBackup('recent')">Recent Resync</button>
                 </div>
                 <div class="card" style="margin-bottom: 0;">
                     <h3>Range Restore</h3>
                     <div class="date-container">
-                        <input type="date" id="startDate" title="시작일">
-                        <input type="date" id="endDate" title="종료일">
+                        <input type="date" id="startDate" title="시작일 지정">
+                        <input type="date" id="endDate" title="종료일 지정">
                     </div>
-                    <button class="btn btn-secondary" title="입력한 시작일과 종료일 사이의 데이터를 확인 해 연결합니다." onclick="runRangeBackup()">Range Restore (구간 복구)</button>
+                    <button class="btn btn-secondary" title="입력한 시작일과 종료일 사이의 데이터를 확인 해 연결합니다." onclick="runRangeBackup()">Execute Range Restore</button>
                     <div style="font-size: 10px; color: var(--warn-text); margin-top: 6px; line-height: 1.3;">⚠️너무 긴 기간을 설정하면 연결 도중 오류가 발생할 수 있으므로, 최대 3개월~6개월 정도의 범위를 지정하는 것을 권장합니다.</div>
-                    <button id="cancel-btn-backup" class="btn-cancel" onclick="cancelProcess()">🛑 강제 중지</button>
+                    <button id="cancel-btn-backup" class="btn-cancel" onclick="cancelProcess()">🛑 진행 강제 중지</button>
                 </div>
             </div>
             <div class="card" style="padding: 10px 14px;">
-                <button class="btn-toggle" onclick="toggleHistory('backup')"><span>Sync History & Logs</span> <span id="icon-backup">▼</span></button>
+                <button class="btn-toggle" style="margin-bottom: 0;" onclick="toggleHistory('backup')"><span>Sync History & Logs</span> <span id="icon-backup">▼</span></button>
                 <div id="history-container-backup" class="history-list" style="display: none;"></div>
-                <div class="log-box" id="logBox-backup">대기 중...</div>
+                <div class="log-box" id="logBox-backup">대기 중... 작업을 실행하면 여기에 실시간 로그가 표시됩니다.</div>
             </div>
         </div>
 
@@ -138,23 +129,14 @@
         <div id="tab-generator" class="section">
             <div class="header-inline">
                 <h2>Generator & Linker</h2>
-                <div style="display:flex; gap:6px;">
-                    <select id="targetYear"></select>
-                    <select id="targetMonth">
-                        <option value="">연간 전체</option>
-                        <option value="1">1월</option><option value="2">2월</option><option value="3">3월</option><option value="4">4월</option>
-                        <option value="5">5월</option><option value="6">6월</option><option value="7">7월</option><option value="8">8월</option>
-                        <option value="9">9월</option><option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
-                    </select>
-                </div>
+                <select id="targetYear"></select>
             </div>
-
             <div class="two-column">
                 <div class="card" style="margin-bottom: 0;">
-                    <h3 style="color: var(--accent-hover);">STEP 1. 페이지 뼈대 생성</h3>
-                    <button class="btn btn-primary" onclick="generatePages('year_month')">1. Year & Monthly 생성 (월 선택시 해당월만)</button>
-                    <button class="btn btn-primary" onclick="generatePages('weeks')">2. Weekly 생성</button>
-                    <button class="btn btn-secondary" onclick="generatePages('daily')" style="margin-bottom: 0;">⚠️ 3. 선택 월 Daily 생성</button>
+                    <h3 style="color: var(--accent-hover); margin-top: 0; margin-bottom: 10px;">STEP 1. 페이지 생성</h3>
+                    <button class="btn btn-primary" onclick="generatePages('year_month')">1. Year & Monthly 생성</button>
+                    <button class="btn btn-secondary" onclick="runWeeksGenerator()">2. 1년 치 Weekly 생성</button>
+                    <button class="btn btn-warn" onclick="runDailyOnlyGenerator()" style="margin-bottom: 0;">⚠️ 3. 1년 치 Daily 생성</button>
                     <div style="margin-top: 10px; border-top: 1px dashed var(--border-color); padding-top: 8px;">
                         <button class="btn-toggle" style="padding: 0; font-size: 11px; font-weight: 600;" onclick="toggleDailyManual()">
                             <span style="color: var(--text-sub);">※ 월별 수동 생성 (누락 복구용)</span> <span id="icon-daily">▼</span>
@@ -163,40 +145,71 @@
                     </div>
                 </div>
                 <div class="card" style="margin-bottom: 0;">
-                    <h3 style="color: var(--success-text);">STEP 2. 뼈대 계층 자동 연결</h3>
-                    <button class="btn btn-primary" style="background-color: var(--success-text);" onclick="runLinker('year_month')">1. Month ↔ Year 연결</button>
-                    <button class="btn btn-primary" style="background-color: var(--success-text);" onclick="runLinker('weeks')">2. Week 연결</button>
-                    <button class="btn btn-secondary" style="border-color: var(--success-text); color: var(--success-text);" onclick="runLinker('daily')">✨ 3. Daily 대량 연결 (월 필수)</button>
+                    <h3 style="color: var(--success-text); margin-top: 0; margin-bottom: 10px;">STEP 2. 뼈대 계층 자동 연결</h3>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" onclick="runLinker('year_month')">1. Month ↔ Year 계층 연결</button>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" onclick="runWeeksLinker()">2. Week ↔ Year/Month 연결</button>
+                    <button class="btn btn-warn" style="background-color: #26A69A; color: white; border: none; margin-bottom: 0;" onclick="runAllInOneLinker()">✨ 3. Daily 대량 연결</button>
                     <div style="margin-top:10px; text-align:center;">
                         <div id="gen-status" style="font-size:12px; font-weight:600;"></div>
-                        <button id="cancel-btn-gen" class="btn-cancel" onclick="cancelProcess()">🛑 강제 중지</button>
+                        <button id="cancel-btn-gen" class="btn-cancel" onclick="cancelProcess()">🛑 진행 강제 중지</button>
                     </div>
                 </div>
             </div>
             <div class="card" style="padding: 10px 14px;">
-                <button class="btn-toggle" onclick="toggleHistory('gen')"><span>Generation Logs</span> <span id="icon-gen">▼</span></button>
+                <button class="btn-toggle" style="margin-bottom: 0;" onclick="toggleHistory('gen')"><span>Generation Logs</span> <span id="icon-gen">▼</span></button>
                 <div id="history-container-gen" class="history-list" style="display: none;"></div>
                 <div class="log-box" id="logBox-gen">대기 중...</div>
             </div>
         </div>
 
-        <!-- 탭 3: Timeline Sync -->
+        <!-- 탭 3: Daily Timeline -->
         <div id="tab-timeline" class="section">
-            <div class="header-inline"><h2>Daily Timeline Sync</h2></div>
-            <div class="card" style="text-align: center; padding: 20px;">
-                <p style="font-size: 12px; color: var(--text-sub); margin-bottom: 16px;">타임테이블(Time Table) DB의 일정을 당일 Daily Archive와 실시간으로 연결합니다.</p>
-                <button class="btn btn-primary" onclick="runTimelineSync()">⏲️ 타임라인 동기화 즉시 실행</button>
+            <div class="header-inline">
+                <h2>Daily Timeline</h2>
+                <select id="tlYear"></select>
             </div>
-            <div class="card" style="padding: 10px 14px;">
-                <div class="log-box active" id="logBox-timeline" style="display:block; height: 160px;">타임라인 대기 중...</div>
+            <div class="two-column">
+                <div class="card" style="margin-bottom: 0;">
+                    <h3>Quick Create</h3>
+                    <button class="btn btn-primary" onclick="runTimelineDay()">🕐 오늘 24시간 생성</button>
+                    <div class="date-container" style="margin-top:8px;">
+                        <input type="date" id="tlStartDate" title="시작일 지정">
+                        <input type="date" id="tlEndDate" title="종료일 지정 (선택)">
+                    </div>
+                    <button class="btn btn-secondary" onclick="runTimelineDateRange()">지정 날짜(범위) 24시간 생성</button>
+                </div>
+                <div class="card" style="margin-bottom: 0;">
+                    <h3>Bulk Create (월별 순차 생성)</h3>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" onclick="runTimelineYear()">✨ 1년치 생성 (12개월)</button>
+                    <div id="tl-month-btns" class="grid-4" style="margin-top:6px;"></div>
+                    <div style="margin-top:10px; text-align:center;">
+                        <div id="tl-status" style="font-size:12px; font-weight:600;"></div>
+                        <button id="cancel-btn-tl" class="btn-cancel" onclick="cancelProcess()">🛑 진행 강제 중지</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card" style="margin-bottom: 0; margin-top: 14px;">
+                <h3>🔧 Data Maintenance</h3>
+                <button class="btn btn-primary" style="background:#6B8DD6;" onclick="runTimelineRestoreQuick()">⚡ 전후 1주일 빠른 복원</button>
+                <div class="date-container" style="margin-top:8px;">
+                    <input type="date" id="tlRestoreStart" title="복원 시작일">
+                    <input type="date" id="tlRestoreEnd" title="복원 종료일">
+                </div>
+                <button class="btn btn-secondary" onclick="runTimelineRestoreRange()">🔧 지정 범위 복원</button>
+                <button class="btn btn-secondary" style="margin-top:4px;" onclick="runTimelineRestoreYear()">✨ 1년치 시간 범위 일괄 복원</button>
+            </div>
+            <div class="card" style="padding:10px 14px; margin-top:14px;">
+                <button class="btn-toggle" style="margin-bottom:0;" onclick="toggleHistory('tl')"><span>Timeline Logs</span> <span id="icon-tl">▼</span></button>
+                <div id="history-container-tl" class="history-list" style="display:none;"></div>
+                <div class="log-box" id="logBox-tl">대기 중...</div>
             </div>
         </div>
 
-        <!-- 탭 4: Settings (버전 정보 포함) -->
+        <!-- 탭 4: Settings -->
         <div id="tab-update" class="section">
             <div class="header-inline"><h2>Settings & Info</h2></div>
             <div class="card" style="padding: 20px; text-align: center;">
-                <div style="font-weight: 800; font-size: 20px; margin-bottom: 10px;" id="version-display">v1.0.1 통합형 위젯</div>
+                <div style="font-weight: 800; font-size: 20px; margin-bottom: 10px;">v1.0.1 통합형 위젯</div>
                 <div style="font-size: 12px; color: var(--text-sub);">모든 템플릿과 완벽 호환되는 유니버셜 백업 시스템입니다.</div>
             </div>
         </div>
@@ -210,11 +223,17 @@
         window.onload = function () {
             const yearSelect = document.getElementById('targetYear');
             const currentYear = new Date().getFullYear();
-            for (let y = 2024; y <= 2035; y++) {
+            for (let y = 2022; y <= 2050; y++) {
                 const opt = document.createElement('option'); 
                 opt.value = y; 
-                opt.innerText = y + (y === currentYear ? "년 (올해)" : "년");
-                if (y === currentYear) opt.selected = true;
+                if (y === currentYear) {
+                    opt.innerText = y + "년 (올해)";
+                    opt.selected = true;
+                    opt.style.color = "#E53E3E";
+                    opt.style.fontWeight = "900";
+                } else {
+                    opt.innerText = y + "년";
+                }
                 yearSelect.appendChild(opt);
             }
             const dailyContainer = document.getElementById('daily-btn-container');
@@ -224,7 +243,11 @@
                     btn.onclick = () => generatePages('daily', 0, i); dailyContainer.appendChild(btn);
                 }
             }
-            updateTheme();
+            initTimelineTab();
+            updateHistoryUI('backup'); updateHistoryUI('gen'); updateTheme();
+            if (localStorage.getItem('darkMode') === 'true') { document.documentElement.setAttribute('data-theme', 'dark'); const btn = document.getElementById('darkModeBtn'); if (btn) btn.innerText = '☀️'; }
+            const initialTab = urlParams.get('tab') || 'backup';
+            showTab(initialTab);
         };
 
         function showTab(id, event) {
@@ -232,103 +255,230 @@
             const target = document.getElementById('tab-' + id);
             if (target) target.classList.add('active');
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
-            if (event) event.currentTarget.classList.add('active');
+            if (event) { event.currentTarget.classList.add('active'); } 
+            else { 
+                const btns = document.querySelectorAll('.nav-btn'); 
+                const tabIds = ['backup', 'generator', 'timeline', 'update']; 
+                const idx = tabIds.indexOf(id); 
+                if (idx >= 0 && idx < btns.length) btns[idx].classList.add('active'); 
+            }
             updateTheme();
         }
 
         function toggleDarkMode() {
             const root = document.documentElement;
             const isDark = root.getAttribute('data-theme') === 'dark';
-            if (isDark) { root.removeAttribute('data-theme'); localStorage.setItem('darkMode', 'false'); } 
-            else { root.setAttribute('data-theme', 'dark'); localStorage.setItem('darkMode', 'true'); }
+            const btn = document.getElementById('darkModeBtn');
+            if (isDark) { root.removeAttribute('data-theme'); if (btn) btn.innerText = '🌙'; localStorage.setItem('darkMode', 'false'); } 
+            else { root.setAttribute('data-theme', 'dark'); if (btn) btn.innerText = '☀️'; localStorage.setItem('darkMode', 'true'); }
             updateTheme();
         }
 
         function updateTheme() {
+            const allBtn = document.getElementById('db-all');
+            const singles = Array.from(document.querySelectorAll('.db-check'));
+            const checkedSingles = singles.filter(cb => cb.checked).map(cb => cb.value);
             const root = document.documentElement;
             const isDark = root.getAttribute('data-theme') === 'dark';
-            root.style.setProperty('--bg-color', isDark ? '#23192D' : '#F7F3FC');
-            root.style.setProperty('--accent-color', '#F4C2D7');
-            root.style.setProperty('--accent-hover', '#E0B0C5');
+
+            let bg, accent, hover, secondary;
+            if (allBtn.checked || checkedSingles.length === 0) {
+                bg = isDark ? '#23192D' : '#F7F3FC'; accent = '#F4C2D7'; hover = '#E0B0C5'; secondary = isDark ? '#3D2A4F' : '#DCD0FF';
+            } else {
+                bg = isDark ? '#19252D' : '#e3edf3'; accent = '#9ABFD6'; hover = '#85AAC1'; secondary = isDark ? '#2A3F4F' : '#C4DCEB';
+            }
+            root.style.setProperty('--bg-color', bg);
+            root.style.setProperty('--accent-color', accent);
+            root.style.setProperty('--accent-hover', hover);
+            root.style.setProperty('--secondary-accent', secondary);
+            root.style.setProperty('--border-color', isDark ? '#3D3545' : '#EBE0F5');
         }
 
-        function toggleAllDBs() { 
-            const allBtn = document.getElementById('db-all'); 
-            if (allBtn.checked) { document.querySelectorAll('.db-check').forEach(cb => cb.checked = false); } 
-            else { allBtn.checked = true; } 
-        }
-        
-        function toggleSingleDB() { 
-            const allBtn = document.getElementById('db-all'); 
-            const singles = document.querySelectorAll('.db-check'); 
-            const checkedCount = Array.from(singles).filter(cb => cb.checked).length; 
-            if (checkedCount === 3 || checkedCount === 0) { allBtn.checked = true; singles.forEach(cb => cb.checked = false); } 
-            else { allBtn.checked = false; } 
-        }
+        function toggleAllDBs() { const allBtn = document.getElementById('db-all'); if (allBtn.checked) { document.querySelectorAll('.db-check').forEach(cb => cb.checked = false); } else { allBtn.checked = true; } updateTheme(); }
+        function toggleSingleDB() { const allBtn = document.getElementById('db-all'); const singles = document.querySelectorAll('.db-check'); const checkedCount = Array.from(singles).filter(cb => cb.checked).length; if (checkedCount === 3 || checkedCount === 0) { allBtn.checked = true; singles.forEach(cb => cb.checked = false); } else { allBtn.checked = false; } updateTheme(); }
 
-        function toggleHistory(id) {
-            const el = document.getElementById(`history-container-${id}`);
-            el.style.display = el.style.display === 'none' ? 'block' : 'none';
-        }
+        function toggleDailyManual() { const container = document.getElementById('daily-btn-container'); const icon = document.getElementById('icon-daily'); if (container.style.display === 'none') { container.style.display = 'grid'; icon.innerText = '▲'; } else { container.style.display = 'none'; icon.innerText = '▼'; } }
+        function toggleHistory(id) { const historyEl = document.getElementById(`history-container-${id}`); const logEl = document.getElementById(`logBox-${id}`); const iconEl = document.getElementById(`icon-${id}`); if (historyEl.style.display === 'none') { historyEl.style.display = 'block'; logEl.classList.add('active'); iconEl.innerText = '▲'; } else { historyEl.style.display = 'none'; logEl.classList.remove('active'); iconEl.innerText = '▼'; } }
+        function cancelProcess() { isCancelled = true; document.querySelectorAll('.btn-cancel').forEach(btn => { btn.innerText = "⏳ 중지 처리 중..."; btn.style.opacity = "0.6"; }); }
+        function toggleCancelBtn(show) { document.querySelectorAll('.btn-cancel').forEach(btn => { if (show) { btn.style.display = 'inline-block'; btn.innerText = "🛑 진행 강제 중지"; btn.style.opacity = "1"; } else { btn.style.display = 'none'; } }); }
 
-        function cancelProcess() { isCancelled = true; }
-        function getTargetDBs() { 
-            if (document.getElementById('db-all').checked) return 'all'; 
-            const checked = Array.from(document.querySelectorAll('.db-check:checked')).map(cb => cb.value); 
-            return checked.length > 0 ? checked.join(',') : 'all'; 
+        function getTargetDBs() { if (document.getElementById('db-all').checked) return 'all'; const checked = Array.from(document.querySelectorAll('.db-check:checked')).map(cb => cb.value); return checked.length > 0 ? checked.join(',') : 'all'; }
+
+        function updateHistoryUI(type) {
+            const history = JSON.parse(localStorage.getItem(`notionHistory_${type}`) || '[]');
+            const container = document.getElementById(`history-container-${type}`);
+            if (!container) return;
+            if (history.length === 0) { container.innerHTML = '<div style="padding:5px; text-align:center; font-size:11px;">기록 없음</div>'; return; }
+            container.innerHTML = history.map(h => `<div class="history-item"><span>${h.date} ${h.time} [${h.mode}]</span><span class="badge ${h.success ? 'success' : 'fail'}">${h.success ? 'OK' : 'ERR'}</span></div>`).join('');
         }
+        function saveHistory(type, mode, success) {
+            const history = JSON.parse(localStorage.getItem(`notionHistory_${type}`) || '[]'); const now = new Date();
+            const dateStr = now.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }); const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            history.unshift({ date: dateStr, time: timeStr, mode: mode, success: success }); if (history.length > 5) history.pop();
+            localStorage.setItem(`notionHistory_${type}`, JSON.stringify(history)); updateHistoryUI(type);
+        }
+        function updateLogBoxes(text, isAppend = false) { document.querySelectorAll('.log-box').forEach(box => { if (isAppend) box.innerText += text; else box.innerText = text; }); }
 
         async function runBackup(mode) {
-            isCancelled = false;
-            document.getElementById('logBox-backup').classList.add('active');
-            document.getElementById('logBox-backup').innerText = `🚀 [${mode}] 동기화 시작...\n`;
+            isCancelled = false; toggleCancelBtn(true);
+            document.getElementById('history-container-backup').style.display = 'block'; document.getElementById('logBox-backup').classList.add('active'); document.getElementById('icon-backup').innerText = '▲';
+            updateLogBoxes(`🚀 [${mode}] 동기화 시작...\n\n`);
             try {
                 const res = await fetch(`/api/cron?mode=${mode}&target_dbs=${getTargetDBs()}&key=${secretKey}`);
                 const data = await res.json();
                 if (data.success) {
-                    document.getElementById('logBox-backup').innerText += (data.logs || []).join('\n') + '\n\n✨ 완료!';
+                    updateLogBoxes((data.logs || []).join('\n') + '\n\n✨ 완료!', true);
+                    saveHistory('backup', mode, true);
                 } else {
-                    document.getElementById('logBox-backup').innerText += `❌ 에러: ${data.error}`;
+                    updateLogBoxes(`❌ 에러: ${data.error}`, true);
+                    saveHistory('backup', mode, false);
                 }
             } catch (e) { alert("통신 에러"); }
+            toggleCancelBtn(false);
         }
 
         async function runRangeBackup() {
             const s = document.getElementById('startDate').value;
             const e = document.getElementById('endDate').value;
             if (!s || !e) return alert("시작일과 종료일을 입력하세요.");
-            document.getElementById('logBox-backup').classList.add('active');
+            isCancelled = false; toggleCancelBtn(true);
+            document.getElementById('history-container-backup').style.display = 'block'; document.getElementById('logBox-backup').classList.add('active'); document.getElementById('icon-backup').innerText = '▲';
             try {
                 const res = await fetch(`/api/cron?mode=range&start_date=${s}&end_date=${e}&target_dbs=${getTargetDBs()}&key=${secretKey}`);
                 const data = await res.json();
-                document.getElementById('logBox-backup').innerText = (data.logs || []).join('\n') + '\n✨ 구간 백업 완료!';
-            } catch (err) { alert("에러 발생"); }
+                updateLogBoxes((data.logs || []).join('\n') + '\n✨ 구간 백업 완료!', true);
+                saveHistory('backup', 'Range Restore', true);
+            } catch (err) { alert("에러 발생"); saveHistory('backup', 'Range Restore', false); }
+            toggleCancelBtn(false);
         }
 
         async function generatePages(type) {
             const y = document.getElementById('targetYear').value;
-            const m = document.getElementById('targetMonth').value;
-            document.getElementById('logBox-gen').classList.add('active');
+            const m = document.getElementById('targetMonth') ? document.getElementById('targetMonth').value : '';
+            document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
             const res = await fetch(`/api/generate?type=${type}&year=${y}&month=${m}&key=${secretKey}`);
             const data = await res.json();
             document.getElementById('logBox-gen').innerText = data.message || JSON.stringify(data);
+            saveHistory('gen', `gen-${type}`, true);
         }
 
         async function runLinker(target) {
             const y = document.getElementById('targetYear').value;
-            const m = document.getElementById('targetMonth').value;
-            document.getElementById('logBox-gen').classList.add('active');
+            const m = document.getElementById('targetMonth') ? document.getElementById('targetMonth').value : '';
+            document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
             const res = await fetch(`/api/generate?type=link&target=${target}&year=${y}&month=${m}&key=${secretKey}`);
             const data = await res.json();
             document.getElementById('logBox-gen').innerText = (data.logs || []).join('\n') + (data.message || '');
+            saveHistory('gen', `link-${target}`, true);
         }
 
-        async function runTimelineSync() {
-            const box = document.getElementById('logBox-timeline');
-            box.innerText = "⏳ 타임라인 동기화 중...";
-            const res = await fetch(`/api/timeline?key=${secretKey}`);
-            const data = await res.json();
-            box.innerText = (data.logs || []).join('\n') + "\n✨ 타임라인 동기화 완료!";
+        async function runWeeksLinker() { runLinker('weeks'); }
+        async function runDailyOnlyGenerator() { generatePages('daily'); }
+        async function runAllInOneLinker() { runLinker('daily'); }
+        async function runWeeksGenerator() { generatePages('weeks'); }
+
+        function initTimelineTab() {
+            const sel = document.getElementById('tlYear'); const cy = new Date().getFullYear();
+            for (let y = 2022; y <= 2050; y++) { 
+                const o = document.createElement('option'); 
+                o.value = y; 
+                if (y === cy) {
+                    o.innerText = y + '년 (올해)';
+                    o.selected = true;
+                    o.style.color = '#E53E3E';
+                    o.style.fontWeight = '900';
+                } else {
+                    o.innerText = y + '년';
+                }
+                sel.appendChild(o); 
+            }
+            const mc = document.getElementById('tl-month-btns');
+            if (mc) {
+                for (let i = 1; i <= 12; i++) { const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.innerText = `${i}월`; b.onclick = () => runTimelineMonth(i); mc.appendChild(b); }
+            }
+            updateHistoryUI('tl');
+        }
+
+        function tlLog(text, append = false) { const box = document.getElementById('logBox-tl'); if (append) box.innerText += text; else box.innerText = text; }
+        function showTlLogs() { document.getElementById('history-container-tl').style.display = 'block'; document.getElementById('logBox-tl').classList.add('active'); document.getElementById('icon-tl').innerText = '▲'; }
+
+        async function runTimelineDay(dateOverride) {
+            const getKSTDate = () => { const now = new Date(); const kstTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); return kstTime.toISOString().split('T')[0]; };
+            const date = dateOverride || getKSTDate(); showTlLogs(); tlLog(`🕐 [Timeline] ${date} 생성 요청 중...\n`);
+            try {
+                const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=day&date=${date}${cb}`); const data = await res.json();
+                if (data.success) { tlLog(`\n✅ ${data.message}`, true); saveHistory('tl', date, true); } else { tlLog(`\n❌ ${data.message || data.error}`, true); saveHistory('tl', date, false); }
+            } catch (err) { tlLog(`\n❌ 네트워크 에러`, true); saveHistory('tl', date, false); }
+        }
+
+        async function runTimelineDateRange() {
+            const start = document.getElementById('tlStartDate').value; const end = document.getElementById('tlEndDate').value;
+            if (!start) return alert('시작 날짜를 선택해주세요.');
+            const startDate = new Date(start); const endDate = end ? new Date(end) : startDate;
+            isCancelled = false; showTlLogs(); toggleCancelBtn(true); tlLog(`🕐 [Timeline] ${start} ~ ${end || start} 생성 시작...\n`);
+            let current = new Date(startDate); let allOk = true;
+            while (current <= endDate) {
+                if (isCancelled) { tlLog(`\n🛑 중지됨.`, true); allOk = false; break; }
+                const yyyy = current.getFullYear(); const mm = String(current.getMonth() + 1).padStart(2, '0'); const dd = String(current.getDate()).padStart(2, '0'); const dateStr = `${yyyy}-${mm}-${dd}`;
+                try {
+                    const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=day&date=${dateStr}${cb}`); const data = await res.json();
+                    if (data.success) { tlLog(`\n  ➡️ [${dateStr}] ${data.message}`, true); } else { tlLog(`\n  ➡️ ❌ [${dateStr}] 에러`, true); allOk = false; break; }
+                } catch (err) { tlLog(`\n  ➡️ ❌ [${dateStr}] 네트워크 에러`, true); allOk = false; break; }
+                current.setDate(current.getDate() + 1); if (current <= endDate) await new Promise(r => setTimeout(r, 600));
+            }
+            toggleCancelBtn(false); if (allOk) tlLog(`\n\n🎉 완료!`, true);
+        }
+
+        async function runTimelineMonth(m, silent) {
+            const y = parseInt(document.getElementById('tlYear').value); const label = `${y}년 ${m}월`;
+            if (!silent) { showTlLogs(); tlLog(`🕐 [Timeline] ${label} 생성 시작...\n`); toggleCancelBtn(true); isCancelled = false; } else { tlLog(`\n▶️ [${m}/12] ${label} 생성 중...`, true); }
+            const daysInMonth = new Date(y, m, 0).getDate(); let allOk = true;
+            for (let d = 1; d <= daysInMonth; d++) {
+                if (isCancelled) { tlLog(`\n🛑 중지됨.`, true); allOk = false; break; }
+                const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                try {
+                    const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=day&date=${dateStr}${cb}`); const data = await res.json();
+                    if (data.success) { tlLog(`\n  ➡️ [${dateStr}] ${data.message}`, true); } else { tlLog(`\n  ➡️ ❌ [${dateStr}] 에러`, true); allOk = false; break; }
+                } catch (err) { tlLog(`\n  ➡️ ❌ [${dateStr}] 네트워크 에러`, true); allOk = false; break; }
+            }
+            if (!silent) { toggleCancelBtn(false); if (allOk) { tlLog(`\n\n🎉 ${label} 완료!`, true); saveHistory('tl', label, true); } else { tlLog(`\n\n🚨 중단됨.`, true); saveHistory('tl', label, false); } }
+            return allOk;
+        }
+
+        async function runTimelineYear() {
+            const y = document.getElementById('tlYear').value; isCancelled = false; const statusDiv = document.getElementById('tl-status');
+            statusDiv.innerText = '⏳ 1년치 생성 중...'; statusDiv.style.color = 'var(--warn-text)'; showTlLogs(); toggleCancelBtn(true); tlLog(`🕐 [Timeline] ${y}년도 1년치 생성 시작...\n`);
+            let allOk = true;
+            for (let m = 1; m <= 12; m++) { if (isCancelled) { allOk = false; break; } const ok = await runTimelineMonth(m, true); if (!ok) { allOk = false; break; } await new Promise(r => setTimeout(r, 1500)); }
+            toggleCancelBtn(false);
+            if (allOk) { tlLog(`\n\n🎉 완료!`, true); statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)'; saveHistory('tl', `${y}년 전체`, true); } else { statusDiv.innerText = '❌ 중단됨'; saveHistory('tl', `${y}년 전체`, false); }
+        }
+
+        async function runTimelineRestoreQuick() {
+            const now = new Date(); const start = new Date(now); start.setDate(start.getDate() - 7); const end = new Date(now); end.setDate(end.getDate() + 7);
+            const startStr = start.toLocaleDateString('en-CA'); const endStr = end.toLocaleDateString('en-CA');
+            showTlLogs(); isCancelled = false; toggleCancelBtn(true); tlLog(`⚡ [Quick Restore] ${startStr} ~ ${endStr} 빠른 복원 시작...\n`);
+            try {
+                const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=restore_range&start_date=${startStr}&end_date=${endStr}${cb}`); const data = await res.json();
+                if (data.success) { tlLog(`\n✅ ${data.message}`, true); saveHistory('tl', 'Quick Restore', true); } else { tlLog(`\n❌ 에러`, true); saveHistory('tl', 'Quick Restore', false); }
+            } catch (err) { tlLog(`\n❌ 네트워크 에러`, true); } toggleCancelBtn(false);
+        }
+
+        async function runTimelineRestoreRange() {
+            const startStr = document.getElementById('tlRestoreStart').value; const endStr = document.getElementById('tlRestoreEnd').value;
+            if (!startStr || !endStr) return alert('시작일과 종료일을 모두 지정해주세요.');
+            showTlLogs(); isCancelled = false; toggleCancelBtn(true); tlLog(`🔧 [Range Restore] ${startStr} ~ ${endStr} 복원 시작...\n`);
+            try {
+                const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=restore_range&start_date=${startStr}&end_date=${endStr}${cb}`); const data = await res.json();
+                if (data.success) { tlLog(`\n✅ ${data.message}`, true); saveHistory('tl', 'Range Restore', true); } else { tlLog(`\n❌ 에러`, true); saveHistory('tl', 'Range Restore', false); }
+            } catch (err) { tlLog(`\n❌ 네트워크 에러`, true); } toggleCancelBtn(false);
+        }
+
+        async function runTimelineRestoreYear() {
+            const y = document.getElementById('tlYear').value; isCancelled = false; showTlLogs(); toggleCancelBtn(true); tlLog(`🔧 [Timeline] ${y}년도 복원 시작...\n`);
+            let allOk = true;
+            for (let m = 1; m <= 12; m++) { if (isCancelled) { allOk = false; break; } const ok = await runTimelineMonth(m, true); if (!ok) { allOk = false; break; } await new Promise(r => setTimeout(r, 1000)); }
+            toggleCancelBtn(false); if (allOk) tlLog(`\n\n🎉 완료!`, true);
         }
     </script>
 </body>
