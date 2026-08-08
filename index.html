@@ -204,7 +204,7 @@
             </div>
         </div>
 
-        <!-- 탭 4: Settings (버전 비교 및 DB 체크 테스트 영역 포함) -->
+        <!-- 탭 4: Settings -->
         <div id="tab-update" class="section">
             <div class="header-inline"><h2>Settings & Info</h2></div>
             
@@ -236,13 +236,27 @@
     </div>
 
     <script>
-        const CURRENT_WIDGET_VERSION = "v1.0.1"; // 🛠️ 버전 업그레이드시 이 숫자만 올려주세요!
+        const CURRENT_WIDGET_VERSION = "v1.0.1";
 
+        // ✨ 노션에서 쿼리 파라미터(?key=)를 해시(#key=)로 변환하거나 잘라먹는 경우를 대비해 두 가지 방식 모두 지원
         const urlParams = new URLSearchParams(window.location.search);
-        const secretKey = urlParams.get('key') || '';
+        const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+        const secretKey = urlParams.get('key') || hashParams.get('key') || '';
+
         let isCancelled = false;
 
         window.onload = function () {
+            // ✨ 비밀번호가 URL에 없으면 경고창 띄우기
+            if (!secretKey) {
+                const main = document.querySelector('.main');
+                if (main) {
+                    const warn = document.createElement('div');
+                    warn.style.cssText = 'background:var(--warn-bg);color:var(--warn-text);padding:12px;border-radius:10px;margin-bottom:12px;font-size:12px;font-weight:600;text-align:center;line-height:1.4;';
+                    warn.innerHTML = '⚠️ 위젯 보안 인증 키(비밀번호)가 누락되었습니다.<br>설치하신 노션 임베드 주소 끝에 <b>?key=설정한비밀번호</b> 를 추가해주세요.';
+                    main.insertBefore(warn, main.firstChild);
+                }
+            }
+
             document.getElementById('currentVersionText').innerText = CURRENT_WIDGET_VERSION;
             checkLatestVersion();
 
@@ -565,7 +579,7 @@
                 if (data.details && data.details.length > 0) {
                     let html = `<ul style="list-style:none; padding:0; margin:0;">`;
                     data.details.forEach(item => {
-                        const color = item.status === 'ok' ? 'var(--success-text)' : 'var(--fail-text)';
+                        const color = item.status === 'ok' ? 'var(--success-text)' : (item.status === 'missing' ? 'var(--text-sub)' : 'var(--fail-text)');
                         html += `<li style="margin-bottom: 4px; color: ${color};">
                                     <strong>${item.name}</strong> : ${item.message}
                                  </li>`;
@@ -573,7 +587,7 @@
                     html += `</ul>`;
                     
                     if (data.success) {
-                        html += `<div style="margin-top: 8px; font-weight: bold; color: var(--success-text);">🎉 모든 DB가 완벽하게 연결되었습니다!</div>`;
+                        html += `<div style="margin-top: 8px; font-weight: bold; color: var(--success-text);">🎉 연결 확인 완료! (미사용 ID는 스킵되었습니다)</div>`;
                     } else {
                         html += `<div style="margin-top: 8px; font-weight: bold; color: var(--fail-text);">⚠️ 에러가 발생한 항목의 Vercel 환경 변수나 노션 연결 권한을 확인해 주세요.</div>`;
                     }
