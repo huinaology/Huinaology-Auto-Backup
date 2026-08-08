@@ -1,6 +1,6 @@
 {
   "name": "notion-cron",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "dependencies": {
     "@notionhq/client": "^2.2.14",
     "googleapis": "^144.0.0",
