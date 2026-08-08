@@ -223,46 +223,51 @@
     </div>
 
     <script>
-        const CURRENT_WIDGET_VERSION = "v1.0.1"; // 🛠️ 버전 업데이트 시 이 숫자만 올려주세요!
-        const GITHUB_REPO_API = "https://raw.githubusercontent.com/huinaology/Huinaology-Auto-Backup/main/package.json";
+        const CURRENT_WIDGET_VERSION = "v1.0.1"; // 현재 위젯 버전
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const secretKey = urlParams.get('key') || '';
-        let isCancelled = false;
+async function checkLatestVersion() {
+    const badge = document.getElementById('versionCheckBadge');
+    if (!badge) return;
+    try {
+        // 깃허브 커밋 기록이나 최신 릴리즈 정보를 직접 대조 (캐시 방지 쿼리 추가)
+        const res = await fetch(`https://api.github.com/repos/huinaology/Huinaology-Auto-Backup/releases/latest?t=${Date.now()}`);
+        if (!res.ok) {
+            // 릴리즈가 없으면 package.json 체크로 대체하되 캐시 방지 적용
+            const fallbackRes = await fetch(`https://raw.githubusercontent.com/huinaology/Huinaology-Auto-Backup/main/package.json?t=${Date.now()}`);
+            const data = await fallbackRes.json();
+            const latestVersion = data.version ? "v" + data.version : CURRENT_WIDGET_VERSION;
+            updateVersionBadge(latestVersion);
+            return;
+        }
+        const releaseData = await res.json();
+        const latestVersion = releaseData.tag_name || CURRENT_WIDGET_VERSION;
+        updateVersionBadge(latestVersion);
+    } catch (e) {
+        // 네트워크 차단이나 에러 시 기본적으로 최신으로 간주
+        badge.innerHTML = "✅ 최신 버전을 사용 중입니다.";
+        badge.style.background = "var(--success-bg)";
+        badge.style.color = "var(--success-text)";
+    }
+}
 
-        window.onload = function () {
-            document.getElementById('currentVersionText').innerText = CURRENT_WIDGET_VERSION;
-            checkLatestVersion();
+function updateVersionBadge(latestVersion) {
+    const badge = document.getElementById('versionCheckBadge');
+    // 숫자만 추출해서 비교 (v1.0.1 과 1.0.1 모두 대응)
+    const cleanCurrent = CURRENT_WIDGET_VERSION.replace(/[^0-9.]/g, '');
+    const cleanLatest = latestVersion.replace(/[^0-9.]/g, '');
 
-            const yearSelect = document.getElementById('targetYear');
-            const currentYear = new Date().getFullYear();
-            for (let y = 2022; y <= 2050; y++) {
-                const opt = document.createElement('option'); 
-                opt.value = y; 
-                if (y === currentYear) {
-                    opt.innerText = y + "년 (올해)";
-                    opt.selected = true;
-                    opt.style.color = "#E53E3E";
-                    opt.style.fontWeight = "900";
-                } else {
-                    opt.innerText = y + "년";
-                }
-                yearSelect.appendChild(opt);
-            }
-            const dailyContainer = document.getElementById('daily-btn-container');
-            if (dailyContainer) {
-                for (let i = 1; i <= 12; i++) {
-                    const btn = document.createElement('button'); btn.className = 'btn btn-secondary'; btn.innerText = `${i}월`;
-                    btn.onclick = () => generatePages('daily', 0, i); dailyContainer.appendChild(btn);
-                }
-            }
-            initTimelineTab();
-            updateHistoryUI('backup'); updateHistoryUI('gen');
-            if (localStorage.getItem('darkMode') === 'true') { document.documentElement.setAttribute('data-theme', 'dark'); const btn = document.getElementById('darkModeBtn'); if (btn) btn.innerText = '☀️'; }
-            showTab('backup');
-        };
+    if (cleanCurrent >= cleanLatest) {
+        badge.innerHTML = "✅ 최신 버전을 사용 중입니다.";
+        badge.style.background = "var(--success-bg)";
+        badge.style.color = "var(--success-text)";
+    } else {
+        badge.innerHTML = `⚠️ 새로운 버전(${latestVersion})이 있습니다!`;
+        badge.style.background = "var(--warn-bg)";
+        badge.style.color = "var(--warn-text)";
+    }
+}
 
-        // ✨ 탭별 고유 지정 색상 테마 적용 로직 복구
+        // ✨ 탭별 고유 지정 색상 테마 적용
         function showTab(id, event) {
             document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
             const target = document.getElementById('tab-' + id);
