@@ -5,11 +5,6 @@ let frontendLogs = [];
 function addLog(msg) { console.log(msg); frontendLogs.push(msg); }
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-function getPageTitle(item) {
-    const titleProp = Object.values(item.properties).find(p => p.type === 'title');
-    return titleProp?.title[0]?.plain_text || "제목없음";
-}
-
 function getSafeDateRange(prop) {
     if (!prop) return null;
     if (prop.type === 'date' && prop.date) {
@@ -38,12 +33,19 @@ function calculateTaskRange(item, dbName) {
 
     if (!schedRange && !iprRange) return null;
 
-    let start = schedRange ? schedRange.start : iprRange.start;
-    let end = schedRange ? schedRange.end : iprRange.end;
+    let start = null;
+    let end = null;
 
-    if (iprRange) {
-        if (iprRange.start < start) start = iprRange.start;
-        if (iprRange.end > end) end = iprRange.end;
+    // ✨ Range 합산 로직 방어코드 강화
+    if (schedRange && iprRange) {
+        start = (iprRange.start < schedRange.start) ? iprRange.start : schedRange.start;
+        end = (iprRange.end > schedRange.end) ? iprRange.end : schedRange.end;
+    } else if (schedRange) {
+        start = schedRange.start;
+        end = schedRange.end;
+    } else if (iprRange) {
+        start = iprRange.start;
+        end = iprRange.end;
     }
 
     if (finalUpdateDate) end = finalUpdateDate;
@@ -81,7 +83,7 @@ async function executeSync(params) {
     const now = DateTime.now().setZone('Asia/Seoul');
     const todayStr = now.toISODate();
     const mode = params.mode || 'today';
-    const slot = params.slot; // morning / evening
+    const slot = params.slot; 
 
     addLog(`🟢 [INIT] 백업 동기화 시작 (Mode: ${mode}, Slot: ${slot || 'manual'})`);
 
@@ -91,7 +93,6 @@ async function executeSync(params) {
     const TIMELINE_DB_ID = await getOrSearchDbId(notion, process.env.TIMELINE_DB_ID, 'Time Table');
     const DAILY_DB_ID = await getOrSearchDbId(notion, process.env.DAILY_DB_ID, 'Daily Archive');
 
-    // ✨ 오전 슬롯일 경우: 오늘 날짜 24시간 타임라인 중복 체크 후 자동 생성
     if (slot === 'morning' && TIMELINE_DB_ID) {
         addLog(`🌅 [Morning Auto] 오늘(${todayStr}) 24시간 타임라인 생성 체크 중...`);
         try {
@@ -101,9 +102,20 @@ async function executeSync(params) {
                 page_size: 100
             });
 
-            if (existingQuery.results.length < 24) {
-                addLog(`✨ 기존 타임라인이 24개 미만입니다. 24개 페이지를 생성합니다.`);
-                for (let h = 0; h < 24; h++) {
+            // ✨ 단순 갯수 파악이 아닌, 각 시간별 존재 여부 정확히 체크하여 누락본만 생성
+            const existingHours = new Set();
+            existingQuery.results.forEach(p => {
+                const titleProp = Object.values(p.properties).find(prop => prop.type === 'title');
+                if (titleProp && titleProp.title[0]) {
+                    const titleText = titleProp.title[0].plain_text;
+                    const hourMatch = titleText.match(/\s(\d{2}):00/);
+                    if (hourMatch) existingHours.add(parseInt(hourMatch[1]));
+                }
+            });
+
+            let createdCount = 0;
+            for (let h = 0; h < 24; h++) {
+                if (!existingHours.has(h)) {
                     const hourStr = String(h).padStart(2, '0') + ":00";
                     await notion.pages.create({
                         parent: { database_id: TIMELINE_DB_ID },
@@ -112,17 +124,16 @@ async function executeSync(params) {
                             "Schedule": { date: { start: todayStr } }
                         }
                     });
+                    createdCount++;
                 }
-                addLog(`✅ 24시간 타임라인 생성 완료`);
-            } else {
-                addLog(`ℹ️ 이미 오늘 날짜의 타임라인이 존재하여 생성을 스킵합니다.`);
             }
+            if (createdCount > 0) addLog(`✅ ${createdCount}개의 누락된 타임라인 생성 완료`);
+            else addLog(`ℹ️ 이미 오늘 날짜의 24시간 타임라인이 완벽히 존재하여 생성을 스킵합니다.`);
         } catch (e) {
             addLog(`⚠️ 타임라인 자동 생성 에러: ${e.message}`);
         }
     }
 
-    // 기존 백업 및 연결 로직 수행
     let MANUAL_START = (params.start_date || '').replace(/[^0-9-]/g, '');
     let MANUAL_END = (params.end_date || '').replace(/[^0-9-]/g, '');
     let queryStart = (MANUAL_START && MANUAL_END) ? MANUAL_START : now.minus({ weeks: 3 }).toISODate();
@@ -299,7 +310,10 @@ async function executeSync(params) {
 
 module.exports = async (req, res) => {
     const { key } = req.query;
-    if (!process.env.WIDGET_SECRET || key !== process.env.WIDGET_SECRET) {
+    // ✨ Vercel Cron 요청일 경우 비밀번호 무시하고 패스 (헤더 체크)
+    const isCron = req.headers['user-agent'] === 'vercel-cron/1.0';
+    
+    if (!isCron && (!process.env.WIDGET_SECRET || key !== process.env.WIDGET_SECRET)) {
         return res.status(401).json({ success: false, error: "⛔ 접근 권한이 없습니다." });
     }
     try { 

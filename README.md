@@ -25,4 +25,4 @@ All-in-One 템플릿 사용자는 물론, 단일 템플릿 구매자도 사용�
 아래 버튼을 누르면 Vercel을 통해 위젯이 무료로 자동 배포됩니다.
 (배포 과정에서 Notion API 토큰과 백업할 DB ID 입력창이 나타납니다.)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/huinaology/Huinaology-Auto-Backup&env=WIDGET_SECRET,NOTION_TOKEN,ANNUAL_DB_ID,MONTHLY_DB_ID,WEEKLY_DB_ID,DAILY_DB_ID,FIN_MONTHLY_DB_ID,FIN_WEEKLY_DB_ID,PERSONAL_MASTER_DB_ID,FINANCE_MASTER_DB_ID,MEDIA_MASTER_DB_ID)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/huinaology/Huinaology-Auto-Backup&env=WIDGET_SECRET,NOTION_TOKEN,ANNUAL_DB_ID,MONTHLY_DB_ID,WEEKLY_DB_ID,DAILY_DB_ID,FIN_MONTHLY_DB_ID,FIN_WEEKLY_DB_ID,PERSONAL_MASTER_DB_ID,FINANCE_MASTER_DB_ID,MEDIA_MASTER_DB_ID,TIMELINE_DB_ID)

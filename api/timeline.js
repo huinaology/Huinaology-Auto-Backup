@@ -3,7 +3,6 @@ const { DateTime } = require('luxon');
 
 let frontendLogs = [];
 const addLog = (msg) => { console.log(msg); frontendLogs.push(msg); };
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function getOrSearchDbId(notion, envId, keyword) {
     if (envId && envId.trim().length > 0) return envId.trim();
@@ -18,8 +17,11 @@ async function getOrSearchDbId(notion, envId, keyword) {
 }
 
 module.exports = async (req, res) => {
-    const { key, mode } = req.query;
-    if (!process.env.WIDGET_SECRET || key !== process.env.WIDGET_SECRET) {
+    const { key } = req.query;
+    // ✨ Vercel Cron 요청일 경우 비밀번호 무시하고 패스 (헤더 체크)
+    const isCron = req.headers['user-agent'] === 'vercel-cron/1.0';
+    
+    if (!isCron && (!process.env.WIDGET_SECRET || key !== process.env.WIDGET_SECRET)) {
         return res.status(401).json({ success: false, error: "⛔ 접근 권한이 없습니다." });
     }
 
