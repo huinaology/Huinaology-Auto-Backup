@@ -3,7 +3,6 @@ const { DateTime } = require('luxon');
 
 let frontendLogs = [];
 function addLog(msg) { console.log(msg); frontendLogs.push(msg); }
-
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function getPageTitle(item) {
@@ -24,12 +23,32 @@ function getSafeDateRange(prop) {
 
 function calculateTaskRange(item, dbName) {
     const props = item.properties;
+    const finalUpdateProp = props["Final Update"] || Object.values(props).find(p => p.id === 'Final Update');
+    const finalUpdateDate = finalUpdateProp?.date?.start ? finalUpdateProp.date.start.substring(0, 10) : null;
+
+    let iprRange = null;
+    if (dbName === "Personal" || dbName === "Media") {
+        const iprProp = props["⏲️ipr Calendar"] || props["ipr Calendar"];
+        iprRange = getSafeDateRange(iprProp);
+    }
+
     const schedKey = Object.keys(props).find(k => k.toLowerCase() === 'schedule');
     const schedProp = schedKey ? props[schedKey] : null;
     const schedRange = getSafeDateRange(schedProp);
-    
-    if (!schedRange) return null;
-    return { start: schedRange.start, end: schedRange.end };
+
+    if (!schedRange && !iprRange) return null;
+
+    let start = schedRange ? schedRange.start : iprRange.start;
+    let end = schedRange ? schedRange.end : iprRange.end;
+
+    if (iprRange) {
+        if (iprRange.start < start) start = iprRange.start;
+        if (iprRange.end > end) end = iprRange.end;
+    }
+
+    if (finalUpdateDate) end = finalUpdateDate;
+    if (start > end) end = start;
+    return { start, end };
 }
 
 function getDaysArray(start, end) {
@@ -45,57 +64,75 @@ function getDaysArray(start, end) {
     return arr;
 }
 
-// ✨ 하이브리드 DB 검색 (우선순위: 환경변수 ID -> 정규식 키워드 탐색)
 async function getOrSearchDbId(notion, envId, keyword) {
     if (envId && envId.trim().length > 0) return envId.trim();
-    
     try {
         const res = await notion.search({ filter: { property: 'object', value: 'database' } });
         const matched = res.results.find(db => {
-            const titleArr = db.title || [];
-            const rawTitle = titleArr.map(t => t.plain_text).join('');
-            // 2027_Store 등 연도_Store 패턴 제거
-            const cleanTitle = rawTitle.replace(/20\d\d_Store/gi, '').trim().toLowerCase();
-            return cleanTitle.includes(keyword.toLowerCase());
+            const rawTitle = (db.title || []).map(t => t.plain_text).join('');
+            return rawTitle.replace(/20\d\d_Store/gi, '').trim().toLowerCase().includes(keyword.toLowerCase());
         });
         return matched ? matched.id : null;
-    } catch (e) {
-        return null;
-    }
+    } catch (e) { return null; }
 }
 
 async function executeSync(params) {
     frontendLogs = [];
-    let MANUAL_START = (params.start_date || process.env.START_DATE || '').replace(/[^0-9-]/g, '');
-    let MANUAL_END = (params.end_date || process.env.END_DATE || '').replace(/[^0-9-]/g, '');
-    
-    const MODE = (MANUAL_START && MANUAL_END) ? 'range' : (params.mode || process.env.MODE || 'today');
-    const TARGET_DBS = params.target_dbs || 'all';
-
-    addLog(`🟢 [INIT] 백업 동기화 엔진 시작 (Mode: ${MODE})`);
     const now = DateTime.now().setZone('Asia/Seoul');
+    const todayStr = now.toISODate();
+    const mode = params.mode || 'today';
+    const slot = params.slot; // morning / evening
 
-    let queryStart, queryEnd;
-    if (MODE === 'range' && MANUAL_START && MANUAL_END) {
-        queryStart = MANUAL_START; queryEnd = MANUAL_END;
-    } else {
-        queryStart = now.minus({ weeks: 3 }).toISODate();
-        queryEnd = now.plus({ weeks: 2 }).toISODate();
-    }
-    addLog(`🗓️ 검색 범위: ${queryStart} ~ ${queryEnd}`);
+    addLog(`🟢 [INIT] 백업 동기화 시작 (Mode: ${mode}, Slot: ${slot || 'manual'})`);
 
     const NOTION_TOKEN = process.env.NOTION_TOKEN;
     const notion = new Client({ auth: NOTION_TOKEN, timeoutMs: 30000, notionVersion: '2022-06-28' });
 
-    addLog(`🔍 DB 하이브리드 탐색 중...`);
-    // 뼈대 DB ID 매칭
+    const TIMELINE_DB_ID = await getOrSearchDbId(notion, process.env.TIMELINE_DB_ID, 'Time Table');
     const DAILY_DB_ID = await getOrSearchDbId(notion, process.env.DAILY_DB_ID, 'Daily Archive');
+
+    // ✨ 오전 슬롯일 경우: 오늘 날짜 24시간 타임라인 중복 체크 후 자동 생성
+    if (slot === 'morning' && TIMELINE_DB_ID) {
+        addLog(`🌅 [Morning Auto] 오늘(${todayStr}) 24시간 타임라인 생성 체크 중...`);
+        try {
+            const existingQuery = await notion.databases.query({
+                database_id: TIMELINE_DB_ID,
+                filter: { property: "Schedule", date: { equals: todayStr } },
+                page_size: 100
+            });
+
+            if (existingQuery.results.length < 24) {
+                addLog(`✨ 기존 타임라인이 24개 미만입니다. 24개 페이지를 생성합니다.`);
+                for (let h = 0; h < 24; h++) {
+                    const hourStr = String(h).padStart(2, '0') + ":00";
+                    await notion.pages.create({
+                        parent: { database_id: TIMELINE_DB_ID },
+                        properties: {
+                            "Title": { title: [{ text: { content: `${todayStr.substring(5)} ${hourStr}` } }] },
+                            "Schedule": { date: { start: todayStr } }
+                        }
+                    });
+                }
+                addLog(`✅ 24시간 타임라인 생성 완료`);
+            } else {
+                addLog(`ℹ️ 이미 오늘 날짜의 타임라인이 존재하여 생성을 스킵합니다.`);
+            }
+        } catch (e) {
+            addLog(`⚠️ 타임라인 자동 생성 에러: ${e.message}`);
+        }
+    }
+
+    // 기존 백업 및 연결 로직 수행
+    let MANUAL_START = (params.start_date || '').replace(/[^0-9-]/g, '');
+    let MANUAL_END = (params.end_date || '').replace(/[^0-9-]/g, '');
+    let queryStart = (MANUAL_START && MANUAL_END) ? MANUAL_START : now.minus({ weeks: 3 }).toISODate();
+    let queryEnd = (MANUAL_START && MANUAL_END) ? MANUAL_END : now.plus({ weeks: 2 }).toISODate();
+
     const WEEKLY_DB_ID = await getOrSearchDbId(notion, process.env.WEEKLY_DB_ID, 'Weekly Archive');
     const MONTHLY_DB_ID = await getOrSearchDbId(notion, process.env.MONTHLY_DB_ID, 'Monthly Archive');
     const FIN_WEEKLY_DB_ID = await getOrSearchDbId(notion, process.env.FIN_WEEKLY_DB_ID, 'Finance Weekly Archive');
     const FIN_MONTHLY_DB_ID = await getOrSearchDbId(notion, process.env.FIN_MONTHLY_DB_ID, 'Finance Monthly Archive');
 
-    // 마스터 DB ID 매칭
     const PERSONAL_DB_ID = await getOrSearchDbId(notion, process.env.PERSONAL_MASTER_DB_ID, 'Personal Master');
     const FINANCE_DB_ID = await getOrSearchDbId(notion, process.env.FINANCE_MASTER_DB_ID, 'Finance Master');
     const MEDIA_DB_ID = await getOrSearchDbId(notion, process.env.MEDIA_MASTER_DB_ID, 'Media Master');
@@ -104,15 +141,12 @@ async function executeSync(params) {
     if (PERSONAL_DB_ID) allTargetDbs.push({ id: PERSONAL_DB_ID, name: "Personal", key: "personal" });
     if (FINANCE_DB_ID) allTargetDbs.push({ id: FINANCE_DB_ID, name: "Finance", key: "finance" });
     if (MEDIA_DB_ID) allTargetDbs.push({ id: MEDIA_DB_ID, name: "Media", key: "media" });
+    if (TIMELINE_DB_ID) allTargetDbs.push({ id: TIMELINE_DB_ID, name: "Timeline", key: "timeline" });
 
+    const TARGET_DBS = params.target_dbs || 'all';
     if (TARGET_DBS !== 'all') {
         const allowed = TARGET_DBS.split(',').map(s => s.trim());
         allTargetDbs = allTargetDbs.filter(db => allowed.includes(db.key));
-    }
-
-    if (allTargetDbs.length === 0) {
-        addLog(`⏭️ 동기화할 마스터 DB가 검색되지 않았습니다. 작업을 스킵합니다.`);
-        return;
     }
 
     const tasksToSync = [];
@@ -121,30 +155,18 @@ async function executeSync(params) {
     const searchStart = DateTime.fromISO(queryStart).minus({ days: 7 }).toISODate();
 
     for (const db of allTargetDbs) {
-        addLog(`\n📂 [${db.name} Master] 일정 스캔 시작...`);
-        let items = [];
-        let hasMore = true; let cursor = undefined;
-        
+        let items = []; let hasMore = true; let cursor = undefined;
         while (hasMore) {
             try {
                 const res = await notion.databases.query({
                     database_id: db.id, 
-                    filter: {
-                        and: [
-                            { property: "Schedule", date: { on_or_after: searchStart } },
-                            { property: "Schedule", date: { on_or_before: queryEnd } }
-                        ]
-                    },
-                    sorts: [{ property: "Schedule", direction: "descending" }],
+                    filter: { property: "Schedule", date: { on_or_after: searchStart } },
                     page_size: 100, start_cursor: cursor
                 });
                 items = [...items, ...res.results];
                 hasMore = res.has_more; cursor = res.next_cursor;
-                await delay(200);
-            } catch (e) {
-                addLog(`  ⚠️ DB 조회 에러 (${db.name}): ${e.message}`);
-                hasMore = false;
-            }
+                await delay(150);
+            } catch (e) { hasMore = false; }
         }
 
         items = items.filter(item => {
@@ -158,47 +180,36 @@ async function executeSync(params) {
             return false;
         });
 
-        addLog(`  📊 ${items.length}개 항목 발견`);
         if (items.length > 0) tasksToSync.push({ db, items });
     }
 
     if (tasksToSync.length > 0) {
-        addLog(`\n📥 아카이브 DB(뼈대) 로딩 중...`);
         const refStart = DateTime.fromISO(minRefDate).minus({ days: 7 }).toISODate();
         const refEnd = DateTime.fromISO(maxRefDate).plus({ days: 7 }).toISODate();
-        
-        const refFilter = {
-            and: [
-                { property: "Schedule", date: { on_or_after: refStart } },
-                { property: "Schedule", date: { on_or_before: refEnd } }
-            ]
-        };
+        const refFilter = { and: [{ property: "Schedule", date: { on_or_after: refStart } }, { property: "Schedule", date: { on_or_before: refEnd } }] };
 
-        const loadRefDB = async (dbId, name) => {
+        const loadRefDB = async (dbId) => {
             if (!dbId) return [];
-            let allResults = []; let hasMore = true; let cursor = undefined;
+            let all = []; let hasMore = true; let cursor = undefined;
             while (hasMore) {
                 try {
-                    const res = await notion.databases.query({
-                        database_id: dbId, filter: refFilter, page_size: 100, start_cursor: cursor
-                    });
-                    allResults = [...allResults, ...res.results];
-                    hasMore = res.has_more; cursor = res.next_cursor;
+                    const res = await notion.databases.query({ database_id: dbId, filter: refFilter, page_size: 100, start_cursor: cursor });
+                    all = [...all, ...res.results]; hasMore = res.has_more; cursor = res.next_cursor;
                     await delay(150);
                 } catch (e) { hasMore = false; }
             }
-            return allResults;
+            return all;
         };
 
         const hasFin = tasksToSync.some(g => g.db.name === "Finance");
         const hasNonFin = tasksToSync.some(g => g.db.name !== "Finance");
 
         const [dailyRaw, weekly, monthly, finWeekly, finMonthly] = await Promise.all([
-            DAILY_DB_ID ? loadRefDB(DAILY_DB_ID, "Daily") : Promise.resolve([]),
-            hasNonFin && WEEKLY_DB_ID ? loadRefDB(WEEKLY_DB_ID, "Weekly") : Promise.resolve([]),
-            hasNonFin && MONTHLY_DB_ID ? loadRefDB(MONTHLY_DB_ID, "Monthly") : Promise.resolve([]),
-            hasFin && FIN_WEEKLY_DB_ID ? loadRefDB(FIN_WEEKLY_DB_ID, "FinWeekly") : Promise.resolve([]),
-            hasFin && FIN_MONTHLY_DB_ID ? loadRefDB(FIN_MONTHLY_DB_ID, "FinMonthly") : Promise.resolve([])
+            DAILY_DB_ID ? loadRefDB(DAILY_DB_ID) : Promise.resolve([]),
+            hasNonFin && WEEKLY_DB_ID ? loadRefDB(WEEKLY_DB_ID) : Promise.resolve([]),
+            hasNonFin && MONTHLY_DB_ID ? loadRefDB(MONTHLY_DB_ID) : Promise.resolve([]),
+            hasFin && FIN_WEEKLY_DB_ID ? loadRefDB(FIN_WEEKLY_DB_ID) : Promise.resolve([]),
+            hasFin && FIN_MONTHLY_DB_ID ? loadRefDB(FIN_MONTHLY_DB_ID) : Promise.resolve([])
         ]);
 
         const dailyMap = new Map(); 
@@ -228,12 +239,9 @@ async function executeSync(params) {
 
         for (const group of tasksToSync) {
             const db = group.db;
-            addLog(`\n🔄 [${db.name} Master] 동기화 처리 시작...`);
-            
             for (let i = 0; i < group.items.length; i += 3) {
                 const batch = group.items.slice(i, i + 3);
                 await Promise.all(batch.map(async (item) => {
-                    const title = getPageTitle(item);
                     const taskRange = calculateTaskRange(item, db.name);
                     const updatePayload = {};
 
@@ -251,17 +259,14 @@ async function executeSync(params) {
 
                         const currentIds = new Set((prop.relation || []).map(r => r.id));
                         const isSame = requiredIds.length === currentIds.size && requiredIds.every(id => currentIds.has(id));
-
                         if (!isSame) updatePayload[propName] = { relation: requiredIds.map(id => ({ id })) };
                     };
 
-                    // ✨ 지정하신 속성명에 맞춘 매칭 로직
                     if (db.name === "Personal" || db.name === "Media") {
                         linkCore("Backup", "daily", true);
                         linkCore("Week Check", "weekly");
                         linkCore("Month Check", "monthly");
                         
-                        // Self Backup (자체 연결)
                         const selfProp = item.properties["Self Backup"];
                         if (selfProp && selfProp.type === 'relation') {
                             const currentSelf = (selfProp.relation || []).map(r => r.id);
@@ -275,20 +280,21 @@ async function executeSync(params) {
                         linkCore("Week Check", "finWeekly");
                         linkCore("Month Backup", "monthly");
                         linkCore("Month Check", "finMonthly");
+                    } else if (db.name === "Timeline") {
+                        linkCore("Backup", "daily", true);
                     }
 
                     if (Object.keys(updatePayload).length > 0) {
                         try {
                             await notion.pages.update({ page_id: item.id, properties: updatePayload });
-                            addLog(`  ✨ [SYNCED] ${title}`);
-                        } catch (e) { addLog(`  ❌ [FAILED] ${title}: ${e.message}`); }
+                        } catch (e) {}
                     }
                 }));
                 await delay(150);
             }
         }
     }
-    addLog(`\n🏁 모든 백업 연결 작업이 완료되었습니다!`);
+    addLog(`🏁 동기화 완료`);
 }
 
 module.exports = async (req, res) => {

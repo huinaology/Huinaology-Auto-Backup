@@ -16,19 +16,20 @@
     "FIN_WEEKLY_DB_ID": "",
     "PERSONAL_MASTER_DB_ID": "",
     "FINANCE_MASTER_DB_ID": "",
-    "MEDIA_MASTER_DB_ID": ""
+    "MEDIA_MASTER_DB_ID": "",
+    "TIM_DB_ID": ""
   },
   "crons": [
     {
-      "path": "/api/cron?mode=today&slot=morning&key=yliaster-autobackup",
+      "path": "/api/cron?mode=today&slot=morning&key=YOUR_SECRET_KEY",
       "schedule": "0 22 * * *"
     },
     {
-      "path": "/api/cron?mode=today&slot=evening&key=yliaster-autobackup",
+      "path": "/api/cron?mode=today&slot=evening&key=YOUR_SECRET_KEY",
       "schedule": "0 10 * * *"
     },
     {
-      "path": "/api/timeline?mode=auto&key=yliaster-autobackup",
+      "path": "/api/timeline?mode=auto&key=YOUR_SECRET_KEY",
       "schedule": "5 22 * * *"
     }
   ],

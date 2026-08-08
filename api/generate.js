@@ -17,21 +17,17 @@ const extractTitle = (properties) => {
     return properties[key].title.map(t => t.plain_text).join('');
 };
 
-// ✨ [하이브리드 탐색] DB ID가 없으면 '2027_Store' 등의 패턴을 무시하고 핵심 키워드로 DB를 자동 검색
 async function getOrSearchDbId(notion, envId, keyword) {
     if (envId && envId.trim().length > 0) return envId.trim();
     try {
         const res = await notion.search({ filter: { property: 'object', value: 'database' }, page_size: 100 });
         const matched = res.results.find(db => {
-            const titleArr = db.title || [];
-            const rawTitle = titleArr.map(t => t.plain_text).join('');
+            const rawTitle = (db.title || []).map(t => t.plain_text).join('');
             const cleanTitle = rawTitle.replace(/20\d\d_Store/gi, '').trim().toLowerCase();
             return cleanTitle.includes(keyword.toLowerCase());
         });
         return matched ? matched.id : null;
-    } catch (e) {
-        return null;
-    }
+    } catch (e) { return null; }
 }
 
 module.exports = async (req, res) => {
@@ -39,7 +35,7 @@ module.exports = async (req, res) => {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 
-  const { key, type, year, month, part, target } = req.query; 
+  const { key, type, year, month, target } = req.query; 
   if (!process.env.WIDGET_SECRET || key !== process.env.WIDGET_SECRET) {
       return res.status(401).json({ success: false, error: "⛔ 접근 권한이 없습니다." });
   }
@@ -52,7 +48,6 @@ module.exports = async (req, res) => {
   const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
   try {
-    // 🔍 하이브리드 DB 검색 실행 (고객이 빈칸으로 둔 템플릿은 null로 할당되어 스킵됨)
     const ANNUAL_DB_ID = await getOrSearchDbId(notion, process.env.ANNUAL_DB_ID, 'Annual Archive');
     const MONTHLY_DB_ID = await getOrSearchDbId(notion, process.env.MONTHLY_DB_ID, 'Monthly Archive');
     const WEEKLY_DB_ID = await getOrSearchDbId(notion, process.env.WEEKLY_DB_ID, 'Weekly Archive');
@@ -82,29 +77,34 @@ module.exports = async (req, res) => {
         return titles;
     };
 
-    // ==========================================
-    // STEP 1. 페이지 자동 생성 (Generator)
-    // ==========================================
+    const createFast = async (dbId, title, start, end, existingSet, iconUrl) => {
+        if (!dbId) return;
+        const startYear = start.substring(0, 4);
+        if (existingSet.has(`${title}_${startYear}`)) { skipped.push(title); return; }
+        const pageData = { parent: { database_id: dbId }, properties: { "Title": { title: [{ text: { content: title } }] }, "Schedule": { date: { start: start, end: end || null } } } };
+        if (iconUrl) pageData.icon = { type: 'external', external: { url: iconUrl } };
+        await notion.pages.create(pageData);
+        created.push(title);
+    };
+
     if (type === 'year_month') {
         const yStart = `${targetYear-1}-11-01`; const yEnd = `${targetYear+1}-02-28`;
         const exAnn = await getExistingTitles(ANNUAL_DB_ID, yStart, yEnd);
         const exMon = await getExistingTitles(MONTHLY_DB_ID, yStart, yEnd);
         const exFinMon = await getExistingTitles(FINANCE_MONTHLY_DB_ID, yStart, yEnd);
 
-        const createFast = async (dbId, title, start, end, existingSet, iconUrl) => {
-            if (!dbId) return; // 해당 DB가 없으면 스킵
-            const startYear = start.substring(0, 4);
-            if (existingSet.has(`${title}_${startYear}`)) { skipped.push(title); return; }
-            const pageData = { parent: { database_id: dbId }, properties: { "Title": { title: [{ text: { content: title } }] }, "Schedule": { date: { start: start, end: end || null } } } };
-            if (iconUrl) pageData.icon = { type: 'external', external: { url: iconUrl } };
-            await notion.pages.create(pageData);
-            created.push(title);
-        };
-
-        await createFast(ANNUAL_DB_ID, `${targetYear}년`, `${targetYear}-01-01`, `${targetYear}-12-31`, exAnn, ICON_YEAR_MONTH);
-        for (let m = 1; m <= 12; m++) {
-            const dt = DateTime.local(targetYear, m, 1);
-            const mTitle = dt.toFormat('MM월'); 
+        if (!month) {
+            await createFast(ANNUAL_DB_ID, `${targetYear}년`, `${targetYear}-01-01`, `${targetYear}-12-31`, exAnn, ICON_YEAR_MONTH);
+            for (let m = 1; m <= 12; m++) {
+                const dt = DateTime.local(targetYear, m, 1);
+                const mTitle = dt.toFormat('MM월'); 
+                await createFast(MONTHLY_DB_ID, mTitle, dt.toISODate(), dt.endOf('month').toISODate(), exMon, ICON_YEAR_MONTH);
+                await createFast(FINANCE_MONTHLY_DB_ID, mTitle, dt.toISODate(), dt.endOf('month').toISODate(), exFinMon, ICON_YEAR_MONTH);
+            }
+        } else {
+            const mNum = parseInt(month);
+            const dt = DateTime.local(targetYear, mNum, 1);
+            const mTitle = dt.toFormat('MM월');
             await createFast(MONTHLY_DB_ID, mTitle, dt.toISODate(), dt.endOf('month').toISODate(), exMon, ICON_YEAR_MONTH);
             await createFast(FINANCE_MONTHLY_DB_ID, mTitle, dt.toISODate(), dt.endOf('month').toISODate(), exFinMon, ICON_YEAR_MONTH);
         }
@@ -166,9 +166,6 @@ module.exports = async (req, res) => {
         }
     }
 
-    // ==========================================
-    // STEP 2. 뼈대 계층 자동 연결 (Linker)
-    // ==========================================
     if (type === 'link') {
         const traceLogs = []; 
         const getPages = async (dbId, fStart, fEnd) => {
@@ -205,8 +202,7 @@ module.exports = async (req, res) => {
         const updates = [];
         
         const yearId = await getYearId();
-        if (yearId) traceLogs.push(`🔍 Annual DB 정상 인식 완료`);
-        else if (ANNUAL_DB_ID) traceLogs.push(`⚠️ Annual DB에서 ${targetYear}년 페이지 인식 실패`);
+        if (yearId) traceLogs.push(`🔍 Annual DB 인식 완료`);
 
         if (target === 'year_month') {
             const yStart = `${targetYear-1}-11-01`; const yEnd = `${targetYear+1}-02-28`;
@@ -304,14 +300,11 @@ module.exports = async (req, res) => {
                 try {
                     await notion.pages.update({ page_id: u.id, properties: finalProps });
                     successCount++;
-                } catch (err) {
-                    errorMessages.push(`ID 에러: ${err.message}`);
-                }
+                } catch (err) { errorMessages.push(err.message); }
             }));
         }
         
-        if (errorMessages.length > 0) return res.status(200).json({ success: false, error: `일부 실패: ${errorMessages[0]}` });
-        
+        if (errorMessages.length > 0) return res.status(200).json({ success: false, error: `일부 실패` });
         traceLogs.push(`✨ ${successCount}개 연결 성공!`);
         return res.status(200).json({ success: true, message: `${successCount}개 연결 성공!`, logs: traceLogs });
     }
