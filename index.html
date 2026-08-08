@@ -22,7 +22,6 @@
         * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; transition: background-color 0.4s ease; }
 
-        /* 탭 상단 좌측 정렬 */
         .top-nav { display: flex; gap: 6px; padding: 12px 16px 0 16px; background: transparent; z-index: 5; position: relative; top: 2px; justify-content: flex-start; }
         .nav-btn { width: 48px; height: 36px; border-radius: 10px 10px 0 0; border: none; background-color: var(--accent-color); color: rgba(255, 255, 255, 0.8); font-size: 18px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.05); position: relative; top: 0; }
         .nav-btn:hover { background-color: var(--accent-hover); color: white; top: -2px; }
@@ -205,22 +204,36 @@
             </div>
         </div>
 
-        <!-- 탭 4: Settings -->
+        <!-- 탭 4: Settings (버전 비교 및 최신버전 체크 기능 포함) -->
         <div id="tab-update" class="section">
             <div class="header-inline"><h2>Settings & Info</h2></div>
             <div class="card" style="padding: 20px; text-align: center;">
-                <div style="font-weight: 800; font-size: 20px; margin-bottom: 10px;">v1.0.1 통합형 위젯</div>
-                <div style="font-size: 12px; color: var(--text-sub);">모든 템플릿과 완벽 호환되는 유니버셜 백업 시스템입니다.</div>
+                <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 4px;">현재 설치된 버전</div>
+                <div style="font-weight: 800; font-size: 20px; margin-bottom: 12px; color: var(--text-main);" id="currentVersionText">v1.0.1</div>
+                
+                <div id="versionCheckBadge" style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--success-bg); color: var(--success-text); margin-bottom: 14px;">
+                    ⏳ 최신 버전 확인 중...
+                </div>
+
+                <div style="font-size: 11px; color: var(--text-sub); line-height: 1.4;">
+                    문제가 발생하거나 건의사항이 있는 경우,<br>템플릿 구매처로 문의를 남겨주시면 감사합니다.
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        const CURRENT_WIDGET_VERSION = "v1.0.1"; // 🛠️ 버전 업데이트 시 이 숫자만 올려주세요!
+        const GITHUB_REPO_API = "https://raw.githubusercontent.com/huinaology/Huinaology-Auto-Backup/main/package.json";
+
         const urlParams = new URLSearchParams(window.location.search);
         const secretKey = urlParams.get('key') || '';
         let isCancelled = false;
 
         window.onload = function () {
+            document.getElementById('currentVersionText').innerText = CURRENT_WIDGET_VERSION;
+            checkLatestVersion();
+
             const yearSelect = document.getElementById('targetYear');
             const currentYear = new Date().getFullYear();
             for (let y = 2022; y <= 2050; y++) {
@@ -244,12 +257,12 @@
                 }
             }
             initTimelineTab();
-            updateHistoryUI('backup'); updateHistoryUI('gen'); updateTheme();
+            updateHistoryUI('backup'); updateHistoryUI('gen');
             if (localStorage.getItem('darkMode') === 'true') { document.documentElement.setAttribute('data-theme', 'dark'); const btn = document.getElementById('darkModeBtn'); if (btn) btn.innerText = '☀️'; }
-            const initialTab = urlParams.get('tab') || 'backup';
-            showTab(initialTab);
+            showTab('backup');
         };
 
+        // ✨ 탭별 고유 지정 색상 테마 적용 로직 복구
         function showTab(id, event) {
             document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
             const target = document.getElementById('tab-' + id);
@@ -262,7 +275,53 @@
                 const idx = tabIds.indexOf(id); 
                 if (idx >= 0 && idx < btns.length) btns[idx].classList.add('active'); 
             }
-            updateTheme();
+            applyTabTheme(id);
+        }
+
+        function applyTabTheme(id) {
+            const root = document.documentElement;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            let bg, accent, hover, secondary;
+
+            if (id === 'backup') {
+                bg = isDark ? '#23192D' : '#F7F3FC'; accent = '#F4C2D7'; hover = '#E0B0C5'; secondary = isDark ? '#3D2A4F' : '#DCD0FF';
+            } else if (id === 'generator') {
+                bg = isDark ? '#1A2520' : '#F6F9F8'; accent = isDark ? '#6BA897' : '#A7CDC0'; hover = isDark ? '#4A8877' : '#91BBAD'; secondary = isDark ? '#3A5A4A' : '#CDEAE0';
+            } else if (id === 'timeline') {
+                bg = isDark ? '#1A1D28' : '#F5F7FB'; accent = isDark ? '#7B8DC5' : '#A6B4E5'; hover = isDark ? '#5A70B0' : '#8FA0D9'; secondary = isDark ? '#3A4060' : '#CFD8F6';
+            } else {
+                bg = isDark ? '#23192D' : '#F7F3FC'; accent = '#F4C2D7'; hover = '#E0B0C5'; secondary = isDark ? '#3D2A4F' : '#DCD0FF';
+            }
+
+            root.style.setProperty('--bg-color', bg);
+            root.style.setProperty('--accent-color', accent);
+            root.style.setProperty('--accent-hover', hover);
+            root.style.setProperty('--secondary-accent', secondary);
+            root.style.setProperty('--border-color', isDark ? '#3D3545' : '#EBE0F5');
+        }
+
+        async function checkLatestVersion() {
+            const badge = document.getElementById('versionCheckBadge');
+            try {
+                const res = await fetch(GITHUB_REPO_API + "?t=" + Date.now());
+                if (!res.ok) throw new Error("Network response was not ok");
+                const data = await res.json();
+                const latestVersion = data.version ? "v" + data.version : CURRENT_WIDGET_VERSION;
+
+                if (CURRENT_WIDGET_VERSION === latestVersion) {
+                    badge.innerHTML = "✅ 최신 버전을 사용 중입니다.";
+                    badge.style.background = "var(--success-bg)";
+                    badge.style.color = "var(--success-text)";
+                } else {
+                    badge.innerHTML = `⚠️ 새로운 버전(${latestVersion})이 있습니다!`;
+                    badge.style.background = "var(--warn-bg)";
+                    badge.style.color = "var(--warn-text)";
+                }
+            } catch (e) {
+                badge.innerHTML = "✅ 최신 버전을 사용 중입니다.";
+                badge.style.background = "var(--success-bg)";
+                badge.style.color = "var(--success-text)";
+            }
         }
 
         function toggleDarkMode() {
@@ -271,31 +330,12 @@
             const btn = document.getElementById('darkModeBtn');
             if (isDark) { root.removeAttribute('data-theme'); if (btn) btn.innerText = '🌙'; localStorage.setItem('darkMode', 'false'); } 
             else { root.setAttribute('data-theme', 'dark'); if (btn) btn.innerText = '☀️'; localStorage.setItem('darkMode', 'true'); }
-            updateTheme();
+            const activeSec = document.querySelector('.section.active');
+            if (activeSec) applyTabTheme(activeSec.id.replace('tab-', ''));
         }
 
-        function updateTheme() {
-            const allBtn = document.getElementById('db-all');
-            const singles = Array.from(document.querySelectorAll('.db-check'));
-            const checkedSingles = singles.filter(cb => cb.checked).map(cb => cb.value);
-            const root = document.documentElement;
-            const isDark = root.getAttribute('data-theme') === 'dark';
-
-            let bg, accent, hover, secondary;
-            if (allBtn.checked || checkedSingles.length === 0) {
-                bg = isDark ? '#23192D' : '#F7F3FC'; accent = '#F4C2D7'; hover = '#E0B0C5'; secondary = isDark ? '#3D2A4F' : '#DCD0FF';
-            } else {
-                bg = isDark ? '#19252D' : '#e3edf3'; accent = '#9ABFD6'; hover = '#85AAC1'; secondary = isDark ? '#2A3F4F' : '#C4DCEB';
-            }
-            root.style.setProperty('--bg-color', bg);
-            root.style.setProperty('--accent-color', accent);
-            root.style.setProperty('--accent-hover', hover);
-            root.style.setProperty('--secondary-accent', secondary);
-            root.style.setProperty('--border-color', isDark ? '#3D3545' : '#EBE0F5');
-        }
-
-        function toggleAllDBs() { const allBtn = document.getElementById('db-all'); if (allBtn.checked) { document.querySelectorAll('.db-check').forEach(cb => cb.checked = false); } else { allBtn.checked = true; } updateTheme(); }
-        function toggleSingleDB() { const allBtn = document.getElementById('db-all'); const singles = document.querySelectorAll('.db-check'); const checkedCount = Array.from(singles).filter(cb => cb.checked).length; if (checkedCount === 3 || checkedCount === 0) { allBtn.checked = true; singles.forEach(cb => cb.checked = false); } else { allBtn.checked = false; } updateTheme(); }
+        function toggleAllDBs() { const allBtn = document.getElementById('db-all'); if (allBtn.checked) { document.querySelectorAll('.db-check').forEach(cb => cb.checked = false); } else { allBtn.checked = true; } }
+        function toggleSingleDB() { const allBtn = document.getElementById('db-all'); const singles = document.querySelectorAll('.db-check'); const checkedCount = Array.from(singles).filter(cb => cb.checked).length; if (checkedCount === 3 || checkedCount === 0) { allBtn.checked = true; singles.forEach(cb => cb.checked = false); } else { allBtn.checked = false; } }
 
         function toggleDailyManual() { const container = document.getElementById('daily-btn-container'); const icon = document.getElementById('icon-daily'); if (container.style.display === 'none') { container.style.display = 'grid'; icon.innerText = '▲'; } else { container.style.display = 'none'; icon.innerText = '▼'; } }
         function toggleHistory(id) { const historyEl = document.getElementById(`history-container-${id}`); const logEl = document.getElementById(`logBox-${id}`); const iconEl = document.getElementById(`icon-${id}`); if (historyEl.style.display === 'none') { historyEl.style.display = 'block'; logEl.classList.add('active'); iconEl.innerText = '▲'; } else { historyEl.style.display = 'none'; logEl.classList.remove('active'); iconEl.innerText = '▼'; } }
@@ -434,7 +474,7 @@
             if (!silent) { showTlLogs(); tlLog(`🕐 [Timeline] ${label} 생성 시작...\n`); toggleCancelBtn(true); isCancelled = false; } else { tlLog(`\n▶️ [${m}/12] ${label} 생성 중...`, true); }
             const daysInMonth = new Date(y, m, 0).getDate(); let allOk = true;
             for (let d = 1; d <= daysInMonth; d++) {
-                if (isCancelled) { tlLog(`\n🛑 중지됨.`, true); allOk = false; break; }
+                if (isCancelled) { allOk = false; break; }
                 const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 try {
                     const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=day&date=${dateStr}${cb}`); const data = await res.json();
@@ -477,7 +517,7 @@
         async function runTimelineRestoreYear() {
             const y = document.getElementById('tlYear').value; isCancelled = false; showTlLogs(); toggleCancelBtn(true); tlLog(`🔧 [Timeline] ${y}년도 복원 시작...\n`);
             let allOk = true;
-            for (let m = 1; m <= 12; m++) { if (isCancelled) { allOk = false; break; } const ok = await runTimelineMonth(m, true); if (!ok) { allOk = false; break; } await new Promise(r => setTimeout(r, 1000)); }
+            for (let m = 1; m <= 12; m++) { if (isCancelled) { allOk = false; break; } const ok = await runTimelineRestoreMonth(m, true); if (!ok) { allOk = false; break; } await new Response(r => setTimeout(r, 1000)); }
             toggleCancelBtn(false); if (allOk) tlLog(`\n\n🎉 완료!`, true);
         }
     </script>
