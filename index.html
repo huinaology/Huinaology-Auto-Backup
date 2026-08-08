@@ -204,15 +204,17 @@
             </div>
         </div>
 
-        <!-- 탭 4: Settings (버전 비교 및 최신버전 체크 기능 포함) -->
+        <!-- 탭 4: Settings (버전 비교 및 깃허브 링크 기능 포함) -->
         <div id="tab-update" class="section">
             <div class="header-inline"><h2>Settings & Info</h2></div>
             <div class="card" style="padding: 20px; text-align: center;">
                 <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 4px;">현재 설치된 버전</div>
                 <div style="font-weight: 800; font-size: 20px; margin-bottom: 12px; color: var(--text-main);" id="currentVersionText">v1.0.1</div>
                 
-                <div id="versionCheckBadge" style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--success-bg); color: var(--success-text); margin-bottom: 14px;">
-                    ⏳ 최신 버전 확인 중...
+                <div id="versionCheckContainer" style="margin-bottom: 14px;">
+                    <div style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--success-bg); color: var(--success-text);">
+                        ⏳ 최신 버전 확인 중...
+                    </div>
                 </div>
 
                 <div style="font-size: 11px; color: var(--text-sub); line-height: 1.4;">
@@ -223,51 +225,45 @@
     </div>
 
     <script>
-        const CURRENT_WIDGET_VERSION = "v1.0.1"; // 현재 위젯 버전
+        const CURRENT_WIDGET_VERSION = "v1.0.1"; // 🛠️ 버전 업그레이드시 이 숫자만 올려주세요!
 
-async function checkLatestVersion() {
-    const badge = document.getElementById('versionCheckBadge');
-    if (!badge) return;
-    try {
-        // 깃허브 커밋 기록이나 최신 릴리즈 정보를 직접 대조 (캐시 방지 쿼리 추가)
-        const res = await fetch(`https://api.github.com/repos/huinaology/Huinaology-Auto-Backup/releases/latest?t=${Date.now()}`);
-        if (!res.ok) {
-            // 릴리즈가 없으면 package.json 체크로 대체하되 캐시 방지 적용
-            const fallbackRes = await fetch(`https://raw.githubusercontent.com/huinaology/Huinaology-Auto-Backup/main/package.json?t=${Date.now()}`);
-            const data = await fallbackRes.json();
-            const latestVersion = data.version ? "v" + data.version : CURRENT_WIDGET_VERSION;
-            updateVersionBadge(latestVersion);
-            return;
-        }
-        const releaseData = await res.json();
-        const latestVersion = releaseData.tag_name || CURRENT_WIDGET_VERSION;
-        updateVersionBadge(latestVersion);
-    } catch (e) {
-        // 네트워크 차단이나 에러 시 기본적으로 최신으로 간주
-        badge.innerHTML = "✅ 최신 버전을 사용 중입니다.";
-        badge.style.background = "var(--success-bg)";
-        badge.style.color = "var(--success-text)";
-    }
-}
+        const urlParams = new URLSearchParams(window.location.search);
+        const secretKey = urlParams.get('key') || '';
+        let isCancelled = false;
 
-function updateVersionBadge(latestVersion) {
-    const badge = document.getElementById('versionCheckBadge');
-    // 숫자만 추출해서 비교 (v1.0.1 과 1.0.1 모두 대응)
-    const cleanCurrent = CURRENT_WIDGET_VERSION.replace(/[^0-9.]/g, '');
-    const cleanLatest = latestVersion.replace(/[^0-9.]/g, '');
+        window.onload = function () {
+            document.getElementById('currentVersionText').innerText = CURRENT_WIDGET_VERSION;
+            checkLatestVersion();
 
-    if (cleanCurrent >= cleanLatest) {
-        badge.innerHTML = "✅ 최신 버전을 사용 중입니다.";
-        badge.style.background = "var(--success-bg)";
-        badge.style.color = "var(--success-text)";
-    } else {
-        badge.innerHTML = `⚠️ 새로운 버전(${latestVersion})이 있습니다!`;
-        badge.style.background = "var(--warn-bg)";
-        badge.style.color = "var(--warn-text)";
-    }
-}
+            const yearSelect = document.getElementById('targetYear');
+            const currentYear = new Date().getFullYear();
+            for (let y = 2022; y <= 2050; y++) {
+                const opt = document.createElement('option'); 
+                opt.value = y; 
+                if (y === currentYear) {
+                    opt.innerText = y + "년 (올해)";
+                    opt.selected = true;
+                    opt.style.color = "#E53E3E";
+                    opt.style.fontWeight = "900";
+                } else {
+                    opt.innerText = y + "년";
+                }
+                yearSelect.appendChild(opt);
+            }
+            const dailyContainer = document.getElementById('daily-btn-container');
+            if (dailyContainer) {
+                for (let i = 1; i <= 12; i++) {
+                    const btn = document.createElement('button'); btn.className = 'btn btn-secondary'; btn.innerText = `${i}월`;
+                    btn.onclick = () => generatePages('daily', 0, i); dailyContainer.appendChild(btn);
+                }
+            }
+            initTimelineTab();
+            updateHistoryUI('backup'); updateHistoryUI('gen');
+            if (localStorage.getItem('darkMode') === 'true') { document.documentElement.setAttribute('data-theme', 'dark'); const btn = document.getElementById('darkModeBtn'); if (btn) btn.innerText = '☀️'; }
+            showTab('backup');
+        };
 
-        // ✨ 탭별 고유 지정 색상 테마 적용
+        // 탭별 고유 지정 색상 테마 적용 로직
         function showTab(id, event) {
             document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
             const target = document.getElementById('tab-' + id);
@@ -306,26 +302,41 @@ function updateVersionBadge(latestVersion) {
         }
 
         async function checkLatestVersion() {
-            const badge = document.getElementById('versionCheckBadge');
+            const container = document.getElementById('versionCheckContainer');
+            if (!container) return;
             try {
-                const res = await fetch(GITHUB_REPO_API + "?t=" + Date.now());
+                const res = await fetch(`https://raw.githubusercontent.com/huinaology/Huinaology-Auto-Backup/main/package.json?t=${Date.now()}`);
                 if (!res.ok) throw new Error("Network response was not ok");
                 const data = await res.json();
                 const latestVersion = data.version ? "v" + data.version : CURRENT_WIDGET_VERSION;
 
-                if (CURRENT_WIDGET_VERSION === latestVersion) {
-                    badge.innerHTML = "✅ 최신 버전을 사용 중입니다.";
-                    badge.style.background = "var(--success-bg)";
-                    badge.style.color = "var(--success-text)";
+                const cleanCurrent = CURRENT_WIDGET_VERSION.replace(/[^0-9.]/g, '');
+                const cleanLatest = latestVersion.replace(/[^0-9.]/g, '');
+
+                if (cleanCurrent >= cleanLatest) {
+                    container.innerHTML = `
+                        <div style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--success-bg); color: var(--success-text);">
+                            ✅ 최신 버전을 사용 중입니다.
+                        </div>
+                    `;
                 } else {
-                    badge.innerHTML = `⚠️ 새로운 버전(${latestVersion})이 있습니다!`;
-                    badge.style.background = "var(--warn-bg)";
-                    badge.style.color = "var(--warn-text)";
+                    container.innerHTML = `
+                        <div style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--warn-bg); color: var(--warn-text); margin-bottom: 8px;">
+                            ⚠️ 새로운 버전(${latestVersion})이 있습니다!
+                        </div>
+                        <div>
+                            <a href="https://github.com/huinaology/Huinaology-Auto-Backup" target="_blank" style="font-size: 11px; font-weight: 700; color: var(--accent-color); text-decoration: none; border: 1px solid var(--accent-color); padding: 4px 10px; border-radius: 6px; display: inline-block;">
+                                🔗 깃허브에서 최신 소스 확인하기
+                            </a>
+                        </div>
+                    `;
                 }
             } catch (e) {
-                badge.innerHTML = "✅ 최신 버전을 사용 중입니다.";
-                badge.style.background = "var(--success-bg)";
-                badge.style.color = "var(--success-text)";
+                container.innerHTML = `
+                    <div style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--success-bg); color: var(--success-text);">
+                        ✅ 최신 버전을 사용 중입니다.
+                    </div>
+                `;
             }
         }
 
@@ -479,7 +490,7 @@ function updateVersionBadge(latestVersion) {
             if (!silent) { showTlLogs(); tlLog(`🕐 [Timeline] ${label} 생성 시작...\n`); toggleCancelBtn(true); isCancelled = false; } else { tlLog(`\n▶️ [${m}/12] ${label} 생성 중...`, true); }
             const daysInMonth = new Date(y, m, 0).getDate(); let allOk = true;
             for (let d = 1; d <= daysInMonth; d++) {
-                if (isCancelled) { allOk = false; break; }
+                if (isCancelled) { tlLog(`\n🛑 중지됨.`, true); allOk = false; break; }
                 const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 try {
                     const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=day&date=${dateStr}${cb}`); const data = await res.json();
@@ -522,7 +533,7 @@ function updateVersionBadge(latestVersion) {
         async function runTimelineRestoreYear() {
             const y = document.getElementById('tlYear').value; isCancelled = false; showTlLogs(); toggleCancelBtn(true); tlLog(`🔧 [Timeline] ${y}년도 복원 시작...\n`);
             let allOk = true;
-            for (let m = 1; m <= 12; m++) { if (isCancelled) { allOk = false; break; } const ok = await runTimelineRestoreMonth(m, true); if (!ok) { allOk = false; break; } await new Response(r => setTimeout(r, 1000)); }
+            for (let m = 1; m <= 12; m++) { if (isCancelled) { allOk = false; break; } const ok = await runTimelineRestoreMonth(m, true); if (!ok) { allOk = false; break; } await new Promise(r => setTimeout(r, 1000)); }
             toggleCancelBtn(false); if (allOk) tlLog(`\n\n🎉 완료!`, true);
         }
     </script>
