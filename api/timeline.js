@@ -44,14 +44,26 @@ function getClockIcon(hour) {
     return `https://api.iconify.design/lucide/clock-${clockNum}.svg?color=${color}`;
 }
 
+// 원본 템플릿(노션 페이지 템플릿)의 실제 규칙: 시/분 자릿수가 한 자리(0~8시)면 앞뒤로
+// \enspace 여백을 넣고, 자릿수가 바뀌는 9시(9:00-10:00)는 \thickspace/\thinspace로
+// 비대칭 보정하며, 두 자리(10~23시)는 여백을 아예 넣지 않는다 - 글자 수 차이만큼
+// 여백으로 상쇄해서 칸 너비를 전부 동일하게 맞추기 위함이다. 모든 시간에 똑같이
+// \enspace를 넣으면(예전 방식) 두 자리 시간대부터 칸이 넓어져 버린다.
+function paddedLabel(h) {
+    const label = `${h}:00-${h + 1}:00`;
+    if (h <= 8) return `\\enspace${label}\\enspace`;
+    if (h === 9) return `\\thickspace${label}\\thinspace`;
+    return label;
+}
+
 // 제목에 쓸 컬러 박스 수식(이퀘이션) 블록을 만든다.
 // 예: \fcolorbox{373c8a}{373c8a}{\color{ffffff}{\enspace0:00-1:00\enspace}}
 function makeHourTitle(h) {
     const color = hourColor(h);
-    const label = `${h}:00-${h + 1}:00`;
+    const label = paddedLabel(h);
     const expression = FILLED_HOURS.has(h)
-        ? `\\fcolorbox{${color}}{${color}}{\\color{ffffff}{\\enspace${label}\\enspace}}`
-        : `\\fcolorbox{${color}}{ffffff}{\\color{${color}}{\\enspace${label}\\enspace}}`;
+        ? `\\fcolorbox{${color}}{${color}}{\\color{ffffff}{${label}}}`
+        : `\\fcolorbox{${color}}{ffffff}{\\color{${color}}{${label}}}`;
     return [{ type: 'equation', equation: { expression } }];
 }
 
@@ -80,12 +92,21 @@ function extractHourFromTitle(page, titlePropName) {
     return null;
 }
 
+// 개인용 타임라인 생성기와 동일한 방식: Luxon의 zone 변환 대신 순수 Date 연산 +
+// 수동 KST(+09:00) 오프셋 문자열 구성을 쓴다. (Luxon의 zone 기반 변환이 이 서버
+// 환경에서 기대와 다르게 동작해 시간이 누락되는 문제가 있어, 검증된 방식으로 교체)
+const toKSTISOString = (dateObj) => {
+    const kstObj = new Date(dateObj.getTime() + 9 * 60 * 60 * 1000);
+    return kstObj.toISOString().substring(0, 19) + '+09:00';
+};
+
 // 정시~정시+1시간(정확히 60분)짜리 KST 구간을 만든다.
 //   ※ 정시~:59분 방식은 각 시간 사이에 1분씩 빈틈이 생겨 합계 계산이 어긋나므로 사용하지 않는다.
 function hourSlotRange(dateISO, hour) {
-    const start = DateTime.fromISO(dateISO, { zone: 'Asia/Seoul' }).plus({ hours: hour });
-    const end = start.plus({ hours: 1 });
-    return { start: start.toISO({ suppressMilliseconds: true }), end: end.toISO({ suppressMilliseconds: true }) };
+    const physicalDateObj = new Date(dateISO + "T00:00:00+09:00");
+    const startObj = new Date(physicalDateObj.getTime() + hour * 3600 * 1000);
+    const endObj = new Date(startObj.getTime() + 60 * 60 * 1000);
+    return { start: toKSTISOString(startObj), end: toKSTISOString(endObj) };
 }
 
 async function findDailyPageId(notion, dailyDbId, dateISO, schedPropName) {
@@ -112,8 +133,12 @@ async function findDailyPageId(notion, dailyDbId, dateISO, schedPropName) {
 //    커스텀 제목)는 이 형식과 다르므로 절대 건드리지 않는다.
 // =====================================================================
 async function scanAndFixDay(notion, timelineDbId, dailyDbId, dateISO, schedPropName, titlePropName, backupPropName) {
-    const dayStart = dateISO;
-    const dayEnd = DateTime.fromISO(dateISO, { zone: 'Asia/Seoul' }).plus({ days: 1 }).toISODate();
+    // Notion API는 시간 없는 날짜 문자열로 datetime 속성을 필터링할 때 UTC 기준으로
+    // 해석해, KST 기준 하루 경계가 몇 시간 밀릴 수 있다. 그래서 개인용과 동일하게
+    // 앞뒤로 하루씩 넉넉히 걸쳐 조회한 뒤, 실제 반환된 페이지의 물리적 날짜를
+    // dateISO와 문자열로 직접 대조해서만 "오늘 것"으로 인정한다 (아래 physicalDateStr 체크).
+    const prevDateStr = toKSTISOString(new Date(new Date(dateISO + "T00:00:00+09:00").getTime() - 24 * 3600 * 1000)).substring(0, 10);
+    const nextDateStr = toKSTISOString(new Date(new Date(dateISO + "T00:00:00+09:00").getTime() + 24 * 3600 * 1000)).substring(0, 10);
 
     let existingPages = [];
     let hasMore = true, cursor = undefined;
@@ -121,8 +146,8 @@ async function scanAndFixDay(notion, timelineDbId, dailyDbId, dateISO, schedProp
         const res = await notion.databases.query({
             database_id: timelineDbId,
             filter: { and: [
-                { property: schedPropName, date: { on_or_after: dayStart } },
-                { property: schedPropName, date: { on_or_before: dayEnd } }
+                { property: schedPropName, date: { on_or_after: prevDateStr } },
+                { property: schedPropName, date: { on_or_before: nextDateStr } }
             ] },
             start_cursor: cursor, page_size: 100
         });
@@ -134,7 +159,8 @@ async function scanAndFixDay(notion, timelineDbId, dailyDbId, dateISO, schedProp
     const byHour = new Map();
     existingPages.forEach(p => {
         const h = extractHourFromTitle(p, titlePropName);
-        if (h !== null && h >= 0 && h <= 23 && !byHour.has(h)) byHour.set(h, p);
+        const physicalDateStr = p.properties[schedPropName]?.date?.start?.substring(0, 10);
+        if (h !== null && h >= 0 && h <= 23 && physicalDateStr === dateISO && !byHour.has(h)) byHour.set(h, p);
     });
 
     const dailyPageId = await findDailyPageId(notion, dailyDbId, dateISO, schedPropName);
@@ -164,9 +190,13 @@ async function scanAndFixDay(notion, timelineDbId, dailyDbId, dateISO, schedProp
             }
         } else {
             const sched = page.properties[schedPropName]?.date;
+            // 개인용과 동일하게, 문자열 파싱 라이브러리에 의존하지 않고 원본 문자열만
+            // 본다: 시간이 아예 없거나(date-only), 분(分)이 "00"이 아니면(예전 :59
+            // 방식 등) 무조건 "정확하지 않음"으로 보고 고친다.
             const isExactTime = !!(sched && sched.start && sched.end
-                && DateTime.fromISO(sched.start).toMillis() === DateTime.fromISO(start).toMillis()
-                && DateTime.fromISO(sched.end).toMillis() === DateTime.fromISO(end).toMillis());
+                && sched.start.includes('T') && sched.end.includes('T')
+                && sched.start.substring(14, 16) === '00'
+                && sched.end.substring(14, 16) === '00');
 
             const currentBackupIds = backupPropName ? (page.properties[backupPropName]?.relation || []).map(r => r.id) : [];
             const desiredBackupIds = dailyPageId ? [dailyPageId] : [];

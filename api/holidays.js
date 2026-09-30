@@ -208,6 +208,27 @@ const extractTitle = (properties) => {
     return properties[key].title.map(t => t.plain_text).join('');
 };
 
+// Contents 관계형 속성이 가리키는 DB에서, 제목이 정확히 일치하는 태그 페이지를 찾는다.
+// (Public은 구매자마다 워크스페이스가 달라 페이지 ID를 고정할 수 없으므로, 제목으로 동적 조회한다.)
+const CONTENTS_HOLIDAY_TAG_TITLE = 'Event & Holiday';
+
+async function findTagPageIdByTitle(notion, targetDbId, tagTitle) {
+    if (!targetDbId) return null;
+    try {
+        const targetDbInfo = await notion.databases.retrieve({ database_id: targetDbId });
+        const targetTitleProp = Object.keys(targetDbInfo.properties).find(k => targetDbInfo.properties[k].type === 'title');
+        if (!targetTitleProp) return null;
+        const res = await notion.databases.query({
+            database_id: targetDbId,
+            filter: { property: targetTitleProp, title: { equals: tagTitle } },
+            page_size: 1
+        });
+        return res.results[0]?.id || null;
+    } catch (e) {
+        return null;
+    }
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
 
@@ -241,8 +262,22 @@ module.exports = async (req, res) => {
       const dbInfo = await notion.databases.retrieve({ database_id: PERSONAL_MASTER_DB_ID });
       const titleProp = Object.keys(dbInfo.properties).find(k => dbInfo.properties[k].type === 'title') || Config.SCHEMA.TITLE.name;
 
-      // 같은 해에 이미 만들어진 제목은 건너뛴다 (중복 방지)
-      const existingTitles = new Set();
+      // Contents 관계형 속성(있다면)이 가리키는 DB에서 "Event & Holiday" 태그 페이지를 찾는다.
+      // 워크스페이스마다 페이지 ID가 다르므로 제목으로 동적으로 찾고, 없으면 태그 연결 없이 계속 진행한다.
+      const contentsProp = Object.keys(dbInfo.properties).find(k =>
+          dbInfo.properties[k].type === 'relation' && k.toLowerCase() === Config.SCHEMA.CONTENTS.name.toLowerCase()
+      );
+      let holidayTagId = null;
+      if (contentsProp) {
+          const contentsTargetDbId = dbInfo.properties[contentsProp].relation?.database_id;
+          holidayTagId = await findTagPageIdByTitle(notion, contentsTargetDbId, CONTENTS_HOLIDAY_TAG_TITLE);
+          if (!holidayTagId) {
+              logs.push(`⚠️ Contents에서 "${CONTENTS_HOLIDAY_TAG_TITLE}" 페이지를 찾지 못해 태그 연결 없이 생성합니다.`);
+          }
+      }
+
+      // 같은 해에 이미 만들어진 제목은 건너뛴다 (중복 방지). Contents가 비어있는지도 같이 기록.
+      const existingMap = new Map(); // title -> { id, hasContents }
       {
           const yStart = `${targetYear}-01-01`; const yEnd = `${targetYear}-12-31`;
           let hasMore = true; let cursor = undefined;
@@ -254,23 +289,46 @@ module.exports = async (req, res) => {
               });
               resp.results.forEach(p => {
                   const t = extractTitle(p.properties);
-                  if (t) existingTitles.add(t);
+                  if (!t) return;
+                  const cp = contentsProp ? p.properties[contentsProp] : null;
+                  const hasContents = !!(cp && cp.relation && cp.relation.length > 0);
+                  existingMap.set(t, { id: p.id, hasContents });
               });
               hasMore = resp.has_more; cursor = resp.next_cursor;
           }
       }
 
-      const created = []; const skipped = [];
+      const created = []; const skipped = []; const patched = [];
       for (let i = 0; i < items.length; i += 3) {
           const batch = items.slice(i, i + 3);
           await Promise.all(batch.map(async (it) => {
-              if (existingTitles.has(it.t)) { skipped.push(it.t); return; }
+              const existing = existingMap.get(it.t);
+              if (existing) {
+                  skipped.push(it.t);
+                  // 이미 있는 항목인데 Contents가 비어있으면 태그만 채워준다.
+                  // 이미 뭔가 연결돼 있으면(직접 다르게 분류해둔 경우) 건드리지 않는다.
+                  if (contentsProp && holidayTagId && !existing.hasContents) {
+                      try {
+                          await notion.pages.update({
+                              page_id: existing.id,
+                              properties: { [contentsProp]: { relation: [{ id: holidayTagId }] } }
+                          });
+                          patched.push(it.t);
+                      } catch (e) {
+                          logs.push(`❌ ${it.t} Contents 보정 실패: ${e.message}`);
+                      }
+                  }
+                  return;
+              }
               const properties = {
                   [titleProp]: { title: [{ text: { content: it.t } }] },
                   [schedProp]: { date: { start: it.s, end: it.e || null } }
               };
               if (it.cat === 'holiday') {
                   properties[Config.SCHEMA.NOTE.name] = { rich_text: holidayBadgeRichText() };
+              }
+              if (contentsProp && holidayTagId) {
+                  properties[contentsProp] = { relation: [{ id: holidayTagId }] };
               }
               try {
                   await notion.pages.create({
@@ -286,8 +344,8 @@ module.exports = async (req, res) => {
           await new Promise(r => setTimeout(r, 200));
       }
 
-      logs.push(`생성 ${created.length}개 / 건너뜀(이미 있음) ${skipped.length}개`);
-      res.status(200).json({ success: true, message: `${targetYear}년: 생성 ${created.length} / 스킵 ${skipped.length}`, logs, created, skipped, verified });
+      logs.push(`생성 ${created.length}개 / 건너뜀(이미 있음) ${skipped.length}개 / Contents 보정 ${patched.length}개`);
+      res.status(200).json({ success: true, message: `${targetYear}년: 생성 ${created.length} / 스킵 ${skipped.length} / 보정 ${patched.length}`, logs, created, skipped, patched, verified });
   } catch (err) {
       res.status(500).json({ success: false, error: err.message });
   }
