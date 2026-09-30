@@ -478,20 +478,44 @@
             const y = document.getElementById('targetYear').value;
             const m = (month !== undefined && month !== null) ? month : '';
             document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
-            const res = await fetch(`/api/generate?type=${type}&year=${y}&month=${m}&key=${secretKey}`);
-            const data = await res.json();
-            document.getElementById('logBox-gen').innerText = data.message || JSON.stringify(data);
-            saveHistory('gen', `gen-${type}`, true);
+            const logEl = document.getElementById('logBox-gen');
+            logEl.innerText = `⏳ 생성 요청 중... (몇 초 걸릴 수 있습니다)`;
+            try {
+                const res = await fetch(`/api/generate?type=${type}&year=${y}&month=${m}&key=${secretKey}`);
+                const data = await res.json();
+                if (data.success) {
+                    logEl.innerText = (data.logs || []).join('\n') + (data.logs ? '\n' : '') + (data.message || '');
+                    saveHistory('gen', `gen-${type}`, true);
+                } else {
+                    logEl.innerText = `❌ 에러: ${data.error || '알 수 없는 오류'}`;
+                    saveHistory('gen', `gen-${type}`, false);
+                }
+            } catch (e) {
+                logEl.innerText = `❌ 네트워크 에러: ${e.message}`;
+                saveHistory('gen', `gen-${type}`, false);
+            }
         }
 
         async function runLinker(target, month) {
             const y = document.getElementById('targetYear').value;
             const m = (month !== undefined && month !== null) ? month : '';
             document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
-            const res = await fetch(`/api/generate?type=link&target=${target}&year=${y}&month=${m}&key=${secretKey}`);
-            const data = await res.json();
-            document.getElementById('logBox-gen').innerText = (data.logs || []).join('\n') + (data.message || '');
-            saveHistory('gen', `link-${target}`, true);
+            const logEl = document.getElementById('logBox-gen');
+            logEl.innerText = `⏳ 연결 요청 중... (몇 초 걸릴 수 있습니다)`;
+            try {
+                const res = await fetch(`/api/generate?type=link&target=${target}&year=${y}&month=${m}&key=${secretKey}`);
+                const data = await res.json();
+                if (data.success) {
+                    logEl.innerText = (data.logs || []).join('\n') + (data.logs ? '\n' : '') + (data.message || '');
+                    saveHistory('gen', `link-${target}`, true);
+                } else {
+                    logEl.innerText = (data.logs || []).join('\n') + `\n❌ 에러: ${data.error || '알 수 없는 오류'}`;
+                    saveHistory('gen', `link-${target}`, false);
+                }
+            } catch (e) {
+                logEl.innerText = `❌ 네트워크 에러: ${e.message}`;
+                saveHistory('gen', `link-${target}`, false);
+            }
         }
 
         async function runWeeksLinker() { runLinker('weeks'); }
@@ -531,6 +555,8 @@
                     const res = await fetch(`/api/generate?type=link&target=daily&year=${y}&month=${m}&key=${secretKey}`);
                     const data = await res.json();
                     logEl.innerText += ` ${data.message || data.error || ''}`;
+                    const warnings = (data.logs || []).filter(l => l.includes('⚠️'));
+                    if (warnings.length > 0) logEl.innerText += `\n   ${warnings.join('\n   ')}`;
                 } catch (e) { logEl.innerText += ` ❌ 네트워크 에러`; }
                 if (m < 12 && !isCancelled) await new Promise(r => setTimeout(r, 800));
             }

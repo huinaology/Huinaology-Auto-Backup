@@ -1,6 +1,8 @@
 const { Client } = require('@notionhq/client');
 const { DateTime } = require('luxon');
 
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const ICON_YEAR_MONTH = 'https://api.iconify.design/lucide/calendar.svg?color=black';
 const ICON_WEEK = 'https://api.iconify.design/lucide/calendar-range.svg?color=black';
 
@@ -189,31 +191,68 @@ module.exports = async (req, res) => {
         const getPages = async (dbId, fStart, fEnd) => {
             if (!dbId) return [];
             let all = []; let cursor = undefined;
-            do {
-                const res = await notion.databases.query({
-                    database_id: dbId,
-                    filter: { and: [ { property: "Schedule", date: { on_or_after: fStart } }, { property: "Schedule", date: { on_or_before: fEnd } } ] },
-                    sorts: [{ property: "Schedule", direction: "ascending" }], 
-                    start_cursor: cursor
-                });
+            let hasMore = true;
+            while (hasMore) {
+                let attempt = 0, success = false, res;
+                while (attempt < 3 && !success) {
+                    try {
+                        res = await notion.databases.query({
+                            database_id: dbId,
+                            filter: { and: [ { property: "Schedule", date: { on_or_after: fStart } }, { property: "Schedule", date: { on_or_before: fEnd } } ] },
+                            sorts: [{ property: "Schedule", direction: "ascending" }],
+                            start_cursor: cursor
+                        });
+                        success = true;
+                    } catch (e) {
+                        attempt++;
+                        if (e.code === 'validation_error' || attempt >= 3) throw e;
+                        await delay(800 * attempt);
+                    }
+                }
                 all = [...all, ...res.results];
                 cursor = res.next_cursor;
-            } while(cursor);
+                hasMore = res.has_more;
+            }
             return all.map(p => ({ id: p.id, title: extractTitle(p.properties), start: p.properties["Schedule"]?.date?.start }));
         };
 
+        // ※ Year 연결이 안 될 때 원인을 알 수 있도록, 실패하면 조용히 null만
+        //   반환하지 말고 traceLogs에 이유를 남긴다 (ANNUAL_DB_ID 없음 / 해당
+        //   연도 페이지를 못 찾음 / 조회 자체가 실패함, 세 가지를 구분).
+        //   Notion 조회는 일시적 오류(레이트리밋 등)에 대비해 재시도한다.
         const getYearId = async () => {
-            if (!ANNUAL_DB_ID) return null;
+            if (!ANNUAL_DB_ID) {
+                traceLogs.push(`⚠️ Year 연결 건너뜀: ANNUAL_DB_ID를 찾을 수 없습니다.`);
+                return null;
+            }
+            const seenTitles = [];
             try {
                 let hasMore = true; let cursor = undefined;
-                while(hasMore) {
-                    const res = await notion.databases.query({ database_id: ANNUAL_DB_ID, start_cursor: cursor });
-                    const p = res.results.find(x => extractTitle(x.properties).includes(targetYear.toString()));
-                    if (p) return p.id;
+                while (hasMore) {
+                    let attempt = 0, success = false, res;
+                    while (attempt < 3 && !success) {
+                        try {
+                            res = await notion.databases.query({ database_id: ANNUAL_DB_ID, start_cursor: cursor });
+                            success = true;
+                        } catch (e) {
+                            attempt++;
+                            if (e.code === 'validation_error' || attempt >= 3) throw e;
+                            await delay(800 * attempt);
+                        }
+                    }
+                    for (const x of res.results) {
+                        const t = extractTitle(x.properties);
+                        seenTitles.push(t);
+                        if (t.includes(targetYear.toString())) return x.id;
+                    }
                     hasMore = res.has_more; cursor = res.next_cursor;
                 }
+                traceLogs.push(`⚠️ Year 연결 건너뜀: Annual DB에서 "${targetYear}"이 포함된 제목을 찾지 못했습니다. (확인된 제목: ${seenTitles.slice(0, 10).join(', ') || '없음'})`);
                 return null;
-            } catch(e) { return null; }
+            } catch (e) {
+                traceLogs.push(`⚠️ Year 연결 건너뜀: Annual DB 조회 실패 (${e.message})`);
+                return null;
+            }
         };
 
         const findByTitle = (arr, title) => arr.find(a => a.title === title)?.id;
@@ -257,7 +296,11 @@ module.exports = async (req, res) => {
 
             const processWeek = (arr, isFin) => {
                 arr.forEach((w, i) => {
-                    const mTitle = `${w.title.split('.')[1].trim()}월`; 
+                    // 제목 문자열을 쪼개서 월을 알아내던 예전 방식은 제목이 예상과 다른
+                    // 페이지(공백 제목, 수동 편집 등)를 만나면 예외를 던져 전체 요청을
+                    // 실패시켰다. 항상 존재하는 Schedule 시작일에서 직접 월을 구한다.
+                    if (!w.start) return;
+                    const mTitle = `${DateTime.fromISO(w.start).toFormat('MM')}월`;
                     if (month) {
                         const mStr = month.toString().padStart(2, '0');
                         if (mTitle !== `${mStr}월`) return;
@@ -320,9 +363,14 @@ module.exports = async (req, res) => {
                     successCount++;
                 } catch (err) { errorMessages.push(err.message); }
             }));
+            await delay(120);
         }
-        
-        if (errorMessages.length > 0) return res.status(200).json({ success: false, error: `일부 실패` });
+
+        if (errorMessages.length > 0) {
+            traceLogs.push(`⚠️ ${successCount}개 성공 / ${errorMessages.length}개 실패`);
+            traceLogs.push(...errorMessages.slice(0, 5).map(m => `  - ${m}`));
+            return res.status(200).json({ success: false, error: `${successCount}개 성공 / ${errorMessages.length}개 실패`, logs: traceLogs });
+        }
         traceLogs.push(`✨ ${successCount}개 연결 성공!`);
         return res.status(200).json({ success: true, message: `${successCount}개 연결 성공!`, logs: traceLogs });
     }
