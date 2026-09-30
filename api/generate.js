@@ -285,7 +285,7 @@ module.exports = async (req, res) => {
                 getPages(MONTHLY_DB_ID, yStart, yEnd), getPages(FINANCE_MONTHLY_DB_ID, yStart, yEnd)
             ]);
 
-            const processMonth = (arr, dbId) => {
+            const processMonth = (arr, dbId, isFin) => {
                 arr.forEach((m, i) => {
                     if (!m.start || !m.start.startsWith(targetYear.toString())) return;
                     const props = {
@@ -294,10 +294,16 @@ module.exports = async (req, res) => {
                         "Next Month": arr[i+1] ? [{id: arr[i+1].id}] : []
                     };
                     if (yearId) props["Year"] = [{id: yearId}];
+                    // Finance Monthly는 같은 구간(제목이 같은) Personal/메인 Monthly 페이지를
+                    // "Month Backup"에 연결한다.
+                    if (isFin) {
+                        const backupId = findByTitle(months, m.title);
+                        if (backupId) props["Month Backup"] = [{id: backupId}];
+                    }
                     updates.push({ id: m.id, props, dbId });
                 });
             };
-            processMonth(months, MONTHLY_DB_ID); processMonth(finMonths, FINANCE_MONTHLY_DB_ID);
+            processMonth(months, MONTHLY_DB_ID, false); processMonth(finMonths, FINANCE_MONTHLY_DB_ID, true);
         }
 
         if (target === 'weeks') {
@@ -335,6 +341,14 @@ module.exports = async (req, res) => {
                     };
                     if (yearId) props["Year"] = [{id: yearId}];
                     if (mId) props["Month Check"] = [{id: mId}];
+                    // Finance Weekly는 같은 구간(제목이 같은) 메인 Weekly/Monthly 페이지를
+                    // 각각 "Week Backup"/"Month Backup"에 연결한다.
+                    if (isFin) {
+                        const weekBackupId = findByTitle(weeks, w.title);
+                        if (weekBackupId) props["Week Backup"] = [{id: weekBackupId}];
+                        const monthBackupId = findByTitle(months, mTitle);
+                        if (monthBackupId) props["Month Backup"] = [{id: monthBackupId}];
+                    }
                     updates.push({ id: w.id, props, dbId });
                 });
             };
