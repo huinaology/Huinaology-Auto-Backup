@@ -83,6 +83,7 @@
         <button class="nav-btn active" onclick="showTab('backup', event)" title="백업 동기화">🌸</button>
         <button class="nav-btn" onclick="showTab('generator', event)" title="페이지 자동 생성 및 연결">🎀</button>
         <button class="nav-btn" onclick="showTab('timeline', event)" title="Daily Timeline 생성">🕐</button>
+        <button class="nav-btn" onclick="showTab('holidays', event)" title="공휴일/기념일/24절기 자동생성">🎌</button>
         <button class="nav-btn" onclick="showTab('update', event)" title="설정 및 정보">⚙️</button>
     </div>
     <button class="theme-toggle" id="darkModeBtn" onclick="toggleDarkMode()" title="라이트/다크 모드 전환">🌙</button>
@@ -96,7 +97,10 @@
                     <label><input type="checkbox" id="db-all" checked onchange="toggleAllDBs()"> ALL</label>
                     <label title="Personal"><input type="checkbox" class="db-check" value="personal" onchange="toggleSingleDB()"> <img src="https://api.iconify.design/lucide/star.svg?color=%23EAB308" class="db-icon"></label>
                     <label title="Finance"><input type="checkbox" class="db-check" value="finance" onchange="toggleSingleDB()"> <img src="https://api.iconify.design/lucide/circle-dollar-sign.svg?color=%2322C55E" class="db-icon"></label>
-                    <label title="Media"><input type="checkbox" class="db-check" value="media" onchange="toggleSingleDB()"> <img src="https://api.iconify.design/lucide/film.svg?color=%23EC4899" class="db-icon"></label>
+                    <label title="Media"><input type="checkbox" class="db-check" value="media" onchange="toggleSingleDB()"> <img src="https://api.iconify.design/lucide/book.svg?color=%238B5E3C" class="db-icon"></label>
+                    <span style="width:1px; align-self:stretch; background:var(--border-color); margin:0 2px;"></span>
+                    <label title="Timetable (ALL에는 포함되지 않으며, 수동으로 선택했을 때만 연결됩니다. 매일 24시간 타임라인 자체는 자동으로 생성됩니다)"><input type="checkbox" class="db-check-extra" value="timeline"> <img src="https://api.iconify.design/lucide/clock.svg?color=%236B8DD6" class="db-icon"></label>
+                    <label title="Pomodoro (ALL 실행 시 자동으로 함께 연결되며, 수동으로 단독 선택도 가능합니다)"><input type="checkbox" class="db-check-extra" value="pomodoro"> <img src="https://api.iconify.design/lucide/timer.svg?color=%23F43F5E" class="db-icon"></label>
                 </div>
             </div>
             <div class="two-column">
@@ -114,7 +118,7 @@
                     </div>
                     <button class="btn btn-secondary" title="입력한 시작일과 종료일 사이의 데이터를 확인 해 연결합니다." onclick="runRangeBackup()">Execute Range Restore</button>
                     <div style="font-size: 10px; color: var(--warn-text); margin-top: 6px; line-height: 1.3;">⚠️너무 긴 기간을 설정하면 연결 도중 오류가 발생할 수 있으므로, 최대 3개월~6개월 정도의 범위를 지정하는 것을 권장합니다.</div>
-                    <button id="cancel-btn-backup" class="btn-cancel" onclick="cancelProcess()">🛑 진행 강제 중지</button>
+                    <button id="cancel-btn-backup" class="btn-cancel" title="지금까지 처리된 항목은 그대로 두고, 진행 중인 작업만 중단합니다." onclick="cancelProcess()">🛑 진행 강제 중지</button>
                 </div>
             </div>
             <div class="card" style="padding: 10px 14px;">
@@ -133,11 +137,11 @@
             <div class="two-column">
                 <div class="card" style="margin-bottom: 0;">
                     <h3 style="color: var(--accent-hover); margin-top: 0; margin-bottom: 10px;">STEP 1. 페이지 생성</h3>
-                    <button class="btn btn-primary" onclick="generatePages('year_month')">1. Year & Monthly 생성</button>
-                    <button class="btn btn-secondary" onclick="runWeeksGenerator()">2. 1년 치 Weekly 생성</button>
-                    <button class="btn btn-warn" onclick="runDailyOnlyGenerator()" style="margin-bottom: 0;">⚠️ 3. 1년 치 Daily 생성</button>
+                    <button class="btn btn-primary" title="선택한 연도의 연간(Year) 페이지 1개와 1~12월 Monthly 페이지(재정 Monthly 포함)를 생성합니다. 이미 있는 페이지는 건너뜁니다." onclick="generatePages('year_month')">1. Year & Monthly 생성</button>
+                    <button class="btn btn-secondary" title="선택한 연도의 주간(Weekly) 페이지를 1년 치(약 52주) 생성합니다. 재정 Weekly도 함께 생성되며, 이미 있는 주는 건너뜁니다." onclick="runWeeksGenerator()">2. 1년 치 Weekly 생성</button>
+                    <button class="btn btn-warn" title="선택한 연도의 1~12월 Daily 페이지를 순서대로 생성합니다. 페이지 수가 많아 시간이 오래 걸릴 수 있어요. 이미 있는 날짜는 건너뜁니다." onclick="runDailyOnlyGenerator()" style="margin-bottom: 0;">⚠️ 3. 1년 치 Daily 생성</button>
                     <div style="margin-top: 10px; border-top: 1px dashed var(--border-color); padding-top: 8px;">
-                        <button class="btn-toggle" style="padding: 0; font-size: 11px; font-weight: 600;" onclick="toggleDailyManual()">
+                        <button class="btn-toggle" style="padding: 0; font-size: 11px; font-weight: 600;" title="특정 달만 다시 생성하고 싶을 때 사용하세요. (예: 중간에 실패한 달만 복구)" onclick="toggleDailyManual()">
                             <span style="color: var(--text-sub);">※ 월별 수동 생성 (누락 복구용)</span> <span id="icon-daily">▼</span>
                         </button>
                         <div class="grid-4" id="daily-btn-container" style="display: none;"></div>
@@ -145,12 +149,12 @@
                 </div>
                 <div class="card" style="margin-bottom: 0;">
                     <h3 style="color: var(--success-text); margin-top: 0; margin-bottom: 10px;">STEP 2. 뼈대 계층 자동 연결</h3>
-                    <button class="btn btn-primary" style="background-color: var(--success-text);" onclick="runLinker('year_month')">1. Month ↔ Year 계층 연결</button>
-                    <button class="btn btn-primary" style="background-color: var(--success-text);" onclick="runWeeksLinker()">2. Week ↔ Year/Month 연결</button>
-                    <button class="btn btn-warn" style="background-color: #26A69A; color: white; border: none; margin-bottom: 0;" onclick="runAllInOneLinker()">✨ 3. Daily 대량 연결</button>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" title="생성된 Monthly 페이지들을 상위 Year 페이지에 연결하고, 이전/다음 달(Last/Next Month) 링크도 이어줍니다." onclick="runLinker('year_month')">1. Month ↔ Year 계층 연결</button>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" title="생성된 Weekly 페이지들을 해당 Year·Month 페이지에 연결하고, 이전/다음 주(Last/Next Week) 링크도 이어줍니다." onclick="runWeeksLinker()">2. Week ↔ Year/Month 연결</button>
+                    <button class="btn btn-warn" style="background-color: #26A69A; color: white; border: none; margin-bottom: 0;" title="선택한 연도의 Daily 페이지들을 해당 Month·Week 페이지에 1~12월 순서대로 연결합니다. 페이지 수가 많아 시간이 오래 걸릴 수 있어요." onclick="runAllInOneLinker()">✨ 3. Daily 대량 연결</button>
                     <div style="margin-top:10px; text-align:center;">
                         <div id="gen-status" style="font-size:12px; font-weight:600;"></div>
-                        <button id="cancel-btn-gen" class="btn-cancel" onclick="cancelProcess()">🛑 진행 강제 중지</button>
+                        <button id="cancel-btn-gen" class="btn-cancel" title="지금까지 처리된 항목은 그대로 두고, 진행 중인 작업만 중단합니다." onclick="cancelProcess()">🛑 진행 강제 중지</button>
                     </div>
                 </div>
             </div>
@@ -170,37 +174,49 @@
             <div class="two-column">
                 <div class="card" style="margin-bottom: 0;">
                     <h3>Quick Create</h3>
-                    <button class="btn btn-primary" onclick="runTimelineDay()">🕐 오늘 24시간 생성</button>
+                    <button class="btn btn-primary" title="오늘 날짜의 0~23시 타임라인 24칸을 만들고, 오늘의 Daily 페이지와 자동으로 연결합니다. 이미 있는 시간대는 건너뜁니다." onclick="runTimelineDay()">🕐 오늘 24시간 생성</button>
                     <div class="date-container" style="margin-top:8px;">
                         <input type="date" id="tlStartDate" title="시작일 지정">
                         <input type="date" id="tlEndDate" title="종료일 지정 (선택)">
                     </div>
-                    <button class="btn btn-secondary" onclick="runTimelineDateRange()">지정 날짜(범위) 24시간 생성</button>
+                    <button class="btn btn-secondary" title="선택한 날짜(또는 기간)에 대해 하루씩 24시간 타임라인을 생성합니다. 이미 있는 시간대는 건너뜁니다." onclick="runTimelineDateRange()">지정 날짜(범위) 24시간 생성</button>
                 </div>
                 <div class="card" style="margin-bottom: 0;">
                     <h3>Bulk Create (월별 순차 생성)</h3>
-                    <button class="btn btn-primary" style="background-color: var(--success-text);" onclick="runTimelineYear()">✨ 1년치 생성 (12개월)</button>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" title="선택한 연도의 1~12월 전체에 대해 매일 24시간 타임라인을 생성합니다. 페이지 수가 많아 시간이 오래 걸릴 수 있어요." onclick="runTimelineYear()">✨ 1년치 생성 (12개월)</button>
                     <div id="tl-month-btns" class="grid-4" style="margin-top:6px;"></div>
                     <div style="margin-top:10px; text-align:center;">
                         <div id="tl-status" style="font-size:12px; font-weight:600;"></div>
-                        <button id="cancel-btn-tl" class="btn-cancel" onclick="cancelProcess()">🛑 진행 강제 중지</button>
+                        <button id="cancel-btn-tl" class="btn-cancel" title="지금까지 처리된 항목은 그대로 두고, 진행 중인 작업만 중단합니다." onclick="cancelProcess()">🛑 진행 강제 중지</button>
                     </div>
                 </div>
-            </div>
-            <div class="card" style="margin-bottom: 0; margin-top: 14px;">
-                <h3>🔧 Data Maintenance</h3>
-                <button class="btn btn-primary" style="background:#6B8DD6;" onclick="runTimelineRestoreQuick()">⚡ 전후 1주일 빠른 복원</button>
-                <div class="date-container" style="margin-top:8px;">
-                    <input type="date" id="tlRestoreStart" title="복원 시작일">
-                    <input type="date" id="tlRestoreEnd" title="복원 종료일">
-                </div>
-                <button class="btn btn-secondary" onclick="runTimelineRestoreRange()">🔧 지정 범위 복원</button>
-                <button class="btn btn-secondary" style="margin-top:4px;" onclick="runTimelineRestoreYear()">✨ 1년치 시간 범위 일괄 복원</button>
             </div>
             <div class="card" style="padding:10px 14px; margin-top:14px;">
                 <button class="btn-toggle" style="margin-bottom:0;" onclick="toggleHistory('tl')"><span>Timeline Logs</span> <span id="icon-tl">▼</span></button>
                 <div id="history-container-tl" class="history-list" style="display:none;"></div>
                 <div class="log-box" id="logBox-tl">대기 중...</div>
+            </div>
+        </div>
+
+        <!-- 탭: Holiday Generator -->
+        <div id="tab-holidays" class="section">
+            <div class="header-inline">
+                <h2>Holiday Generator</h2>
+                <select id="holidayYear"></select>
+            </div>
+            <div class="card">
+                <h3 style="margin-top: 0;">Personal Master DB에 자동 생성</h3>
+                <p style="font-size: 12px; color: var(--text-sub); line-height: 1.6; margin: 0 0 10px;">
+                    지정한 연도의 <b>법정공휴일</b>(빨간 달력, Holiday 뱃지) · <b>기타기념일</b>(파란 달력, 제헌절/식목일/어버이날/할로윈 등) · <b>24절기+한식</b>(노란 orbit)을
+                    Schedule 날짜와 함께 생성합니다. 이미 같은 제목이 그 해에 있으면 건너뜁니다(중복 생성 안 됨).
+                </p>
+                <button class="btn btn-primary" title="선택한 연도의 법정공휴일·기념일·24절기를 Personal Master DB에 생성합니다. 설날·추석·부처님오신날처럼 음력 기반 날짜는 확인된 연도만 정확하게 생성됩니다." onclick="runHolidayGenerate()">이 연도 자동 생성</button>
+                <div id="holiday-status" style="font-size:12px; font-weight:600; text-align:center; margin-top: 6px;"></div>
+            </div>
+            <div class="card" style="padding: 10px 14px;">
+                <button class="btn-toggle" style="margin-bottom: 0;" onclick="toggleHistory('holiday')"><span>Generation Logs</span> <span id="icon-holiday">▼</span></button>
+                <div id="history-container-holiday" class="history-list" style="display: none;"></div>
+                <div class="log-box" id="logBox-holiday">대기 중...</div>
             </div>
         </div>
 
@@ -210,7 +226,7 @@
             
             <div class="card" style="padding: 20px; text-align: center;">
                 <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 4px;">현재 설치된 버전</div>
-                <div style="font-weight: 800; font-size: 20px; margin-bottom: 12px; color: var(--text-main);" id="currentVersionText">v1.0.1</div>
+                <div style="font-weight: 800; font-size: 20px; margin-bottom: 12px; color: var(--text-main);" id="currentVersionText">v1.2.0</div>
                 
                 <div id="versionCheckContainer" style="margin-bottom: 14px;">
                     <div style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--success-bg); color: var(--success-text);">
@@ -229,14 +245,14 @@
                 <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 10px; line-height: 1.4;">
                     모든 환경 변수(ID)가 잘 입력되었고 노션과 정상적으로 연결되었는지 테스트합니다.
                 </div>
-                <button class="btn btn-secondary" id="db-check-btn" onclick="checkAllDBs()">🔍 일괄 연결 테스트 실행</button>
+                <button class="btn btn-secondary" id="db-check-btn" title="설정한 노션 DB ID들이 실제로 잘 연결되는지 한 번에 점검합니다." onclick="checkAllDBs()">🔍 일괄 연결 테스트 실행</button>
                 <div id="db-check-results" style="margin-top: 10px; font-size: 11px; background: var(--bg-color); padding: 10px; border-radius: 8px; display: none;"></div>
             </div>
         </div>
     </div>
 
     <script>
-        const CURRENT_WIDGET_VERSION = "v1.0.1";
+        const CURRENT_WIDGET_VERSION = "v1.2.0";
 
         // ✨ 노션에서 쿼리 파라미터(?key=)를 해시(#key=)로 변환하거나 잘라먹는 경우를 대비해 두 가지 방식 모두 지원
         const urlParams = new URLSearchParams(window.location.search);
@@ -279,11 +295,28 @@
             if (dailyContainer) {
                 for (let i = 1; i <= 12; i++) {
                     const btn = document.createElement('button'); btn.className = 'btn btn-secondary'; btn.innerText = `${i}월`;
-                    btn.onclick = () => generatePages('daily', 0, i); dailyContainer.appendChild(btn);
+                    btn.title = `${i}월 Daily 페이지만 생성합니다. (이미 있는 날짜는 건너뜁니다)`;
+                    btn.onclick = () => generatePages('daily', i); dailyContainer.appendChild(btn);
+                }
+            }
+            const holidayYearSelect = document.getElementById('holidayYear');
+            if (holidayYearSelect) {
+                for (let y = 2022; y <= 2050; y++) {
+                    const opt = document.createElement('option');
+                    opt.value = y;
+                    if (y === currentYear) {
+                        opt.innerText = y + "년 (올해)";
+                        opt.selected = true;
+                        opt.style.color = "#E53E3E";
+                        opt.style.fontWeight = "900";
+                    } else {
+                        opt.innerText = y + "년";
+                    }
+                    holidayYearSelect.appendChild(opt);
                 }
             }
             initTimelineTab();
-            updateHistoryUI('backup'); updateHistoryUI('gen');
+            updateHistoryUI('backup'); updateHistoryUI('gen'); updateHistoryUI('holiday');
             if (localStorage.getItem('darkMode') === 'true') { document.documentElement.setAttribute('data-theme', 'dark'); const btn = document.getElementById('darkModeBtn'); if (btn) btn.innerText = '☀️'; }
             showTab('backup');
         };
@@ -297,7 +330,7 @@
             if (event) { event.currentTarget.classList.add('active'); } 
             else { 
                 const btns = document.querySelectorAll('.nav-btn'); 
-                const tabIds = ['backup', 'generator', 'timeline', 'update']; 
+                const tabIds = ['backup', 'generator', 'timeline', 'holidays', 'update'];
                 const idx = tabIds.indexOf(id); 
                 if (idx >= 0 && idx < btns.length) btns[idx].classList.add('active'); 
             }
@@ -315,6 +348,8 @@
                 bg = isDark ? '#1A2520' : '#F6F9F8'; accent = isDark ? '#6BA897' : '#A7CDC0'; hover = isDark ? '#4A8877' : '#91BBAD'; secondary = isDark ? '#3A5A4A' : '#CDEAE0';
             } else if (id === 'timeline') {
                 bg = isDark ? '#1A1D28' : '#F5F7FB'; accent = isDark ? '#7B8DC5' : '#A6B4E5'; hover = isDark ? '#5A70B0' : '#8FA0D9'; secondary = isDark ? '#3A4060' : '#CFD8F6';
+            } else if (id === 'holidays') {
+                bg = isDark ? '#2D2818' : '#FEFBF0'; accent = isDark ? '#D4A537' : '#F0C36D'; hover = isDark ? '#B8863A' : '#D9A94D'; secondary = isDark ? '#4A3F20' : '#FBE8B8';
             } else {
                 bg = isDark ? '#23192D' : '#F7F3FC'; accent = '#F4C2D7'; hover = '#E0B0C5'; secondary = isDark ? '#3D2A4F' : '#DCD0FF';
             }
@@ -383,7 +418,13 @@
         function cancelProcess() { isCancelled = true; document.querySelectorAll('.btn-cancel').forEach(btn => { btn.innerText = "⏳ 중지 처리 중..."; btn.style.opacity = "0.6"; }); }
         function toggleCancelBtn(show) { document.querySelectorAll('.btn-cancel').forEach(btn => { if (show) { btn.style.display = 'inline-block'; btn.innerText = "🛑 진행 강제 중지"; btn.style.opacity = "1"; } else { btn.style.display = 'none'; } }); }
 
-        function getTargetDBs() { if (document.getElementById('db-all').checked) return 'all'; const checked = Array.from(document.querySelectorAll('.db-check:checked')).map(cb => cb.value); return checked.length > 0 ? checked.join(',') : 'all'; }
+        function getTargetDBs() {
+            const base = document.getElementById('db-all').checked ? ['all'] : Array.from(document.querySelectorAll('.db-check:checked')).map(cb => cb.value);
+            const parts = base.length > 0 ? [...base] : ['all'];
+            // Timetable/Pomodoro는 ALL/Personal/Finance/Media와 별개로 체크된 만큼 그대로 덧붙인다.
+            Array.from(document.querySelectorAll('.db-check-extra:checked')).forEach(cb => parts.push(cb.value));
+            return parts.join(',');
+        }
 
         function updateHistoryUI(type) {
             const history = JSON.parse(localStorage.getItem(`notionHistory_${type}`) || '[]');
@@ -433,9 +474,9 @@
             toggleCancelBtn(false);
         }
 
-        async function generatePages(type) {
+        async function generatePages(type, month) {
             const y = document.getElementById('targetYear').value;
-            const m = document.getElementById('targetMonth') ? document.getElementById('targetMonth').value : '';
+            const m = (month !== undefined && month !== null) ? month : '';
             document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
             const res = await fetch(`/api/generate?type=${type}&year=${y}&month=${m}&key=${secretKey}`);
             const data = await res.json();
@@ -443,9 +484,9 @@
             saveHistory('gen', `gen-${type}`, true);
         }
 
-        async function runLinker(target) {
+        async function runLinker(target, month) {
             const y = document.getElementById('targetYear').value;
-            const m = document.getElementById('targetMonth') ? document.getElementById('targetMonth').value : '';
+            const m = (month !== undefined && month !== null) ? month : '';
             document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
             const res = await fetch(`/api/generate?type=link&target=${target}&year=${y}&month=${m}&key=${secretKey}`);
             const data = await res.json();
@@ -454,9 +495,79 @@
         }
 
         async function runWeeksLinker() { runLinker('weeks'); }
-        async function runDailyOnlyGenerator() { generatePages('daily'); }
-        async function runAllInOneLinker() { runLinker('daily'); }
+
+        // Daily 생성/연결은 API가 한 번에 한 달치만 처리하므로 1~12월을 순서대로 돌며 처리한다.
+        async function runDailyOnlyGenerator() {
+            const y = document.getElementById('targetYear').value;
+            isCancelled = false; toggleCancelBtn(true);
+            document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
+            const logEl = document.getElementById('logBox-gen');
+            logEl.innerText = `📅 ${y}년 1~12월 Daily 생성 시작...\n`;
+            for (let m = 1; m <= 12; m++) {
+                if (isCancelled) { logEl.innerText += `\n🛑 중지됨.`; break; }
+                logEl.innerText += `\n▶️ [${m}/12] ${m}월 생성 중...`;
+                try {
+                    const res = await fetch(`/api/generate?type=daily&year=${y}&month=${m}&key=${secretKey}`);
+                    const data = await res.json();
+                    logEl.innerText += ` ${data.message || data.error || ''}`;
+                } catch (e) { logEl.innerText += ` ❌ 네트워크 에러`; }
+                if (m < 12 && !isCancelled) await new Promise(r => setTimeout(r, 800));
+            }
+            toggleCancelBtn(false);
+            logEl.innerText += `\n\n🎉 완료!`;
+            saveHistory('gen', 'gen-daily-year', true);
+        }
+
+        async function runAllInOneLinker() {
+            const y = document.getElementById('targetYear').value;
+            isCancelled = false; toggleCancelBtn(true);
+            document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
+            const logEl = document.getElementById('logBox-gen');
+            logEl.innerText = `🔗 ${y}년 1~12월 Daily 연결 시작...\n`;
+            for (let m = 1; m <= 12; m++) {
+                if (isCancelled) { logEl.innerText += `\n🛑 중지됨.`; break; }
+                logEl.innerText += `\n▶️ [${m}/12] ${m}월 연결 중...`;
+                try {
+                    const res = await fetch(`/api/generate?type=link&target=daily&year=${y}&month=${m}&key=${secretKey}`);
+                    const data = await res.json();
+                    logEl.innerText += ` ${data.message || data.error || ''}`;
+                } catch (e) { logEl.innerText += ` ❌ 네트워크 에러`; }
+                if (m < 12 && !isCancelled) await new Promise(r => setTimeout(r, 800));
+            }
+            toggleCancelBtn(false);
+            logEl.innerText += `\n\n🎉 완료!`;
+            saveHistory('gen', 'link-daily-year', true);
+        }
+
         async function runWeeksGenerator() { generatePages('weeks'); }
+
+        async function runHolidayGenerate() {
+            const year = document.getElementById('holidayYear').value;
+            const statusDiv = document.getElementById('holiday-status');
+            document.getElementById('history-container-holiday').style.display = 'block';
+            document.getElementById('logBox-holiday').classList.add('active');
+            document.getElementById('icon-holiday').innerText = '▲';
+            statusDiv.innerText = `⏳ ${year}년 생성 중...`; statusDiv.style.color = "var(--text-main)";
+            const logBox = document.getElementById('logBox-holiday');
+            logBox.innerText = `🚀 ${year}년 공휴일/기념일/24절기 생성 요청 중...\n(중복 확인 포함이라 몇 초 걸릴 수 있습니다)\n\n`;
+            try {
+                const res = await fetch(`/api/holidays?year=${year}&key=${secretKey}`);
+                const data = await res.json();
+                if (data.success) {
+                    logBox.innerText += (data.logs || []).join('\n') + `\n\n✅ ${data.message}`;
+                    statusDiv.innerText = "✅ 완료!"; statusDiv.style.color = "var(--success-text)";
+                    saveHistory('holiday', `${year}년 생성`, true);
+                } else {
+                    logBox.innerText += `\n❌ 에러: ${data.error}`;
+                    statusDiv.innerText = "❌ 실패 (로그 확인)"; statusDiv.style.color = "var(--fail-text)";
+                    saveHistory('holiday', `${year}년 생성`, false);
+                }
+            } catch (err) {
+                logBox.innerText += `\n❌ 네트워크 에러: ${err.message}`;
+                statusDiv.innerText = "❌ 실패"; statusDiv.style.color = "var(--fail-text)";
+                saveHistory('holiday', `${year}년 생성`, false);
+            }
+        }
 
         function initTimelineTab() {
             const sel = document.getElementById('tlYear'); const cy = new Date().getFullYear();
@@ -475,7 +586,11 @@
             }
             const mc = document.getElementById('tl-month-btns');
             if (mc) {
-                for (let i = 1; i <= 12; i++) { const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.innerText = `${i}월`; b.onclick = () => runTimelineMonth(i); mc.appendChild(b); }
+                for (let i = 1; i <= 12; i++) {
+                    const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.innerText = `${i}월`;
+                    b.title = `${i}월 전체 날짜에 대해 24시간 타임라인을 생성합니다.`;
+                    b.onclick = () => runTimelineMonth(i); mc.appendChild(b);
+                }
             }
             updateHistoryUI('tl');
         }
@@ -533,33 +648,6 @@
             for (let m = 1; m <= 12; m++) { if (isCancelled) { allOk = false; break; } const ok = await runTimelineMonth(m, true); if (!ok) { allOk = false; break; } await new Promise(r => setTimeout(r, 1500)); }
             toggleCancelBtn(false);
             if (allOk) { tlLog(`\n\n🎉 완료!`, true); statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)'; saveHistory('tl', `${y}년 전체`, true); } else { statusDiv.innerText = '❌ 중단됨'; saveHistory('tl', `${y}년 전체`, false); }
-        }
-
-        async function runTimelineRestoreQuick() {
-            const now = new Date(); const start = new Date(now); start.setDate(start.getDate() - 7); const end = new Date(now); end.setDate(end.getDate() + 7);
-            const startStr = start.toLocaleDateString('en-CA'); const endStr = end.toLocaleDateString('en-CA');
-            showTlLogs(); isCancelled = false; toggleCancelBtn(true); tlLog(`⚡ [Quick Restore] ${startStr} ~ ${endStr} 빠른 복원 시작...\n`);
-            try {
-                const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=restore_range&start_date=${startStr}&end_date=${endStr}${cb}`); const data = await res.json();
-                if (data.success) { tlLog(`\n✅ ${data.message}`, true); saveHistory('tl', 'Quick Restore', true); } else { tlLog(`\n❌ 에러`, true); saveHistory('tl', 'Quick Restore', false); }
-            } catch (err) { tlLog(`\n❌ 네트워크 에러`, true); } toggleCancelBtn(false);
-        }
-
-        async function runTimelineRestoreRange() {
-            const startStr = document.getElementById('tlRestoreStart').value; const endStr = document.getElementById('tlRestoreEnd').value;
-            if (!startStr || !endStr) return alert('시작일과 종료일을 모두 지정해주세요.');
-            showTlLogs(); isCancelled = false; toggleCancelBtn(true); tlLog(`🔧 [Range Restore] ${startStr} ~ ${endStr} 복원 시작...\n`);
-            try {
-                const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=restore_range&start_date=${startStr}&end_date=${endStr}${cb}`); const data = await res.json();
-                if (data.success) { tlLog(`\n✅ ${data.message}`, true); saveHistory('tl', 'Range Restore', true); } else { tlLog(`\n❌ 에러`, true); saveHistory('tl', 'Range Restore', false); }
-            } catch (err) { tlLog(`\n❌ 네트워크 에러`, true); } toggleCancelBtn(false);
-        }
-
-        async function runTimelineRestoreYear() {
-            const y = document.getElementById('tlYear').value; isCancelled = false; showTlLogs(); toggleCancelBtn(true); tlLog(`🔧 [Timeline] ${y}년도 복원 시작...\n`);
-            let allOk = true;
-            for (let m = 1; m <= 12; m++) { if (isCancelled) { allOk = false; break; } const ok = await runTimelineRestoreMonth(m, true); if (!ok) { allOk = false; break; } await new Promise(r => setTimeout(r, 1000)); }
-            toggleCancelBtn(false); if (allOk) tlLog(`\n\n🎉 완료!`, true);
         }
 
         // 새롭게 추가된 일괄 DB 연결 체크 로직

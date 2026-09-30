@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const dbKeys = [
         'ANNUAL_DB_ID', 'DAILY_DB_ID', 'FIN_MONTHLY_DB_ID', 'FIN_WEEKLY_DB_ID',
         'FINANCE_MASTER_DB_ID', 'MEDIA_MASTER_DB_ID', 'MONTHLY_DB_ID',
-        'PERSONAL_MASTER_DB_ID', 'WEEKLY_DB_ID', 'TIMELINE_DB_ID'
+        'PERSONAL_MASTER_DB_ID', 'WEEKLY_DB_ID', 'TIMELINE_DB_ID', 'POMODORO_DB_ID', 'SYNC_STATE_DB_ID'
     ];
 
     let results = [];

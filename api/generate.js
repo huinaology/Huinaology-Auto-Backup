@@ -56,7 +56,21 @@ module.exports = async (req, res) => {
     const FINANCE_WEEKLY_DB_ID = await getOrSearchDbId(notion, process.env.FINANCE_WEEKLY_DB_ID, 'Finance Weekly Archive');
 
     const created = []; const skipped = [];
-    
+
+    // 제목 속성 이름은 사용자가 "이름"/"Name" 등으로 바꿔뒀을 수 있으니,
+    // "Title"로 고정하지 않고 DB마다 실제 title 타입 속성을 찾아서 사용한다.
+    const titlePropCache = {};
+    const getTitleProp = async (dbId) => {
+        if (!dbId) return 'Title';
+        if (titlePropCache[dbId]) return titlePropCache[dbId];
+        try {
+            const info = await notion.databases.retrieve({ database_id: dbId });
+            const key = Object.keys(info.properties).find(k => info.properties[k].type === 'title') || 'Title';
+            titlePropCache[dbId] = key;
+            return key;
+        } catch (e) { return 'Title'; }
+    };
+
     const getExistingTitles = async (dbId, start, end) => {
         if (!dbId) return new Set();
         const titles = new Set();
@@ -81,7 +95,8 @@ module.exports = async (req, res) => {
         if (!dbId) return;
         const startYear = start.substring(0, 4);
         if (existingSet.has(`${title}_${startYear}`)) { skipped.push(title); return; }
-        const pageData = { parent: { database_id: dbId }, properties: { "Title": { title: [{ text: { content: title } }] }, "Schedule": { date: { start: start, end: end || null } } } };
+        const titleProp = await getTitleProp(dbId);
+        const pageData = { parent: { database_id: dbId }, properties: { [titleProp]: { title: [{ text: { content: title } }] }, "Schedule": { date: { start: start, end: end || null } } } };
         if (iconUrl) pageData.icon = { type: 'external', external: { url: iconUrl } };
         await notion.pages.create(pageData);
         created.push(title);
@@ -114,6 +129,8 @@ module.exports = async (req, res) => {
         const yStart = `${targetYear-1}-11-01`; const yEnd = `${targetYear+1}-02-28`;
         const exWeek = await getExistingTitles(WEEKLY_DB_ID, yStart, yEnd);
         const exFinWeek = await getExistingTitles(FINANCE_WEEKLY_DB_ID, yStart, yEnd);
+        const weekTitleProp = await getTitleProp(WEEKLY_DB_ID);
+        const finWeekTitleProp = await getTitleProp(FINANCE_WEEKLY_DB_ID);
 
         const totalWeeks = DateTime.local(targetYear, 12, 28).weekNumber; 
         for (let w = 1; w <= totalWeeks; w++) {
@@ -125,12 +142,12 @@ module.exports = async (req, res) => {
             const sYear = startIso.substring(0, 4);
 
             if (!exWeek.has(`${wTitle}_${sYear}`) && WEEKLY_DB_ID) {
-                await notion.pages.create({ parent: { database_id: WEEKLY_DB_ID }, properties: { "Title": { title: [{ text: { content: wTitle } }] }, "Schedule": { date: { start: startIso, end: endIso } } }, icon: { type: 'external', external: { url: ICON_WEEK } } });
+                await notion.pages.create({ parent: { database_id: WEEKLY_DB_ID }, properties: { [weekTitleProp]: { title: [{ text: { content: wTitle } }] }, "Schedule": { date: { start: startIso, end: endIso } } }, icon: { type: 'external', external: { url: ICON_WEEK } } });
                 created.push(wTitle);
             } else { skipped.push(wTitle); }
 
             if (!exFinWeek.has(`${wTitle}_${sYear}`) && FINANCE_WEEKLY_DB_ID) {
-                await notion.pages.create({ parent: { database_id: FINANCE_WEEKLY_DB_ID }, properties: { "Title": { title: [{ text: { content: wTitle } }] }, "Schedule": { date: { start: startIso, end: endIso } } }, icon: { type: 'external', external: { url: ICON_WEEK } } });
+                await notion.pages.create({ parent: { database_id: FINANCE_WEEKLY_DB_ID }, properties: { [finWeekTitleProp]: { title: [{ text: { content: wTitle } }] }, "Schedule": { date: { start: startIso, end: endIso } } }, icon: { type: 'external', external: { url: ICON_WEEK } } });
             }
         }
     }
@@ -139,6 +156,7 @@ module.exports = async (req, res) => {
         const m = parseInt(month);
         const dt = DateTime.local(targetYear, m, 1);
         const existingDaily = await getExistingTitles(DAILY_DB_ID, dt.startOf('month').toISODate(), dt.endOf('month').toISODate());
+        const dailyTitleProp = await getTitleProp(DAILY_DB_ID);
 
         const tasks = [];
         for (let d = 1; d <= dt.daysInMonth; d++) {
@@ -153,7 +171,7 @@ module.exports = async (req, res) => {
                 if(!DAILY_DB_ID) return;
                 await notion.pages.create({
                     parent: { database_id: DAILY_DB_ID },
-                    properties: { "Title": { title: [{ text: { content: dTitle } }] }, "Schedule": { date: { start: day.toISODate(), end: null } } },
+                    properties: { [dailyTitleProp]: { title: [{ text: { content: dTitle } }] }, "Schedule": { date: { start: day.toISODate(), end: null } } },
                     icon: { type: 'external', external: { url: getDailyIcon(dayNameStr) } }
                 });
                 created.push(dTitle);
