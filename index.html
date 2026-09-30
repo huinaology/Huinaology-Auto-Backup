@@ -479,19 +479,24 @@
             const m = (month !== undefined && month !== null) ? month : '';
             document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
             const logEl = document.getElementById('logBox-gen');
+            const statusDiv = document.getElementById('gen-status');
+            statusDiv.innerText = '⏳ 처리 중...'; statusDiv.style.color = 'var(--text-main)';
             logEl.innerText = `⏳ 생성 요청 중... (몇 초 걸릴 수 있습니다)`;
             try {
                 const res = await fetch(`/api/generate?type=${type}&year=${y}&month=${m}&key=${secretKey}`);
                 const data = await res.json();
                 if (data.success) {
                     logEl.innerText = (data.logs || []).join('\n') + (data.logs ? '\n' : '') + (data.message || '');
+                    statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)';
                     saveHistory('gen', `gen-${type}`, true);
                 } else {
                     logEl.innerText = `❌ 에러: ${data.error || '알 수 없는 오류'}`;
+                    statusDiv.innerText = '❌ 실패 (로그 확인)'; statusDiv.style.color = 'var(--fail-text)';
                     saveHistory('gen', `gen-${type}`, false);
                 }
             } catch (e) {
                 logEl.innerText = `❌ 네트워크 에러: ${e.message}`;
+                statusDiv.innerText = '❌ 실패'; statusDiv.style.color = 'var(--fail-text)';
                 saveHistory('gen', `gen-${type}`, false);
             }
         }
@@ -501,19 +506,24 @@
             const m = (month !== undefined && month !== null) ? month : '';
             document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
             const logEl = document.getElementById('logBox-gen');
+            const statusDiv = document.getElementById('gen-status');
+            statusDiv.innerText = '⏳ 처리 중...'; statusDiv.style.color = 'var(--text-main)';
             logEl.innerText = `⏳ 연결 요청 중... (몇 초 걸릴 수 있습니다)`;
             try {
                 const res = await fetch(`/api/generate?type=link&target=${target}&year=${y}&month=${m}&key=${secretKey}`);
                 const data = await res.json();
                 if (data.success) {
                     logEl.innerText = (data.logs || []).join('\n') + (data.logs ? '\n' : '') + (data.message || '');
+                    statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)';
                     saveHistory('gen', `link-${target}`, true);
                 } else {
                     logEl.innerText = (data.logs || []).join('\n') + `\n❌ 에러: ${data.error || '알 수 없는 오류'}`;
+                    statusDiv.innerText = '❌ 실패 (로그 확인)'; statusDiv.style.color = 'var(--fail-text)';
                     saveHistory('gen', `link-${target}`, false);
                 }
             } catch (e) {
                 logEl.innerText = `❌ 네트워크 에러: ${e.message}`;
+                statusDiv.innerText = '❌ 실패'; statusDiv.style.color = 'var(--fail-text)';
                 saveHistory('gen', `link-${target}`, false);
             }
         }
@@ -526,20 +536,33 @@
             isCancelled = false; toggleCancelBtn(true);
             document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
             const logEl = document.getElementById('logBox-gen');
+            const statusDiv = document.getElementById('gen-status');
+            statusDiv.innerText = `⏳ 생성 중... (0/12)`; statusDiv.style.color = 'var(--text-main)';
             logEl.innerText = `📅 ${y}년 1~12월 Daily 생성 시작...\n`;
+            let allOk = true;
             for (let m = 1; m <= 12; m++) {
-                if (isCancelled) { logEl.innerText += `\n🛑 중지됨.`; break; }
+                if (isCancelled) { logEl.innerText += `\n🛑 중지됨.`; allOk = false; break; }
+                statusDiv.innerText = `⏳ 생성 중... (${m}/12)`;
                 logEl.innerText += `\n▶️ [${m}/12] ${m}월 생성 중...`;
                 try {
                     const res = await fetch(`/api/generate?type=daily&year=${y}&month=${m}&key=${secretKey}`);
                     const data = await res.json();
                     logEl.innerText += ` ${data.message || data.error || ''}`;
-                } catch (e) { logEl.innerText += ` ❌ 네트워크 에러`; }
+                    if (!data.success) allOk = false;
+                } catch (e) { logEl.innerText += ` ❌ 네트워크 에러`; allOk = false; }
                 if (m < 12 && !isCancelled) await new Promise(r => setTimeout(r, 800));
             }
             toggleCancelBtn(false);
-            logEl.innerText += `\n\n🎉 완료!`;
-            saveHistory('gen', 'gen-daily-year', true);
+            if (isCancelled) {
+                statusDiv.innerText = '🛑 중지됨'; statusDiv.style.color = 'var(--warn-text)';
+            } else if (allOk) {
+                logEl.innerText += `\n\n🎉 완료!`;
+                statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)';
+            } else {
+                logEl.innerText += `\n\n⚠️ 일부 실패했습니다. 위 로그를 확인해주세요.`;
+                statusDiv.innerText = '⚠️ 일부 실패 (로그 확인)'; statusDiv.style.color = 'var(--fail-text)';
+            }
+            saveHistory('gen', 'gen-daily-year', allOk);
         }
 
         async function runAllInOneLinker() {
@@ -547,9 +570,13 @@
             isCancelled = false; toggleCancelBtn(true);
             document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
             const logEl = document.getElementById('logBox-gen');
+            const statusDiv = document.getElementById('gen-status');
+            statusDiv.innerText = `⏳ 연결 중... (0/12)`; statusDiv.style.color = 'var(--text-main)';
             logEl.innerText = `🔗 ${y}년 1~12월 Daily 연결 시작...\n`;
+            let allOk = true;
             for (let m = 1; m <= 12; m++) {
-                if (isCancelled) { logEl.innerText += `\n🛑 중지됨.`; break; }
+                if (isCancelled) { logEl.innerText += `\n🛑 중지됨.`; allOk = false; break; }
+                statusDiv.innerText = `⏳ 연결 중... (${m}/12)`;
                 logEl.innerText += `\n▶️ [${m}/12] ${m}월 연결 중...`;
                 try {
                     const res = await fetch(`/api/generate?type=link&target=daily&year=${y}&month=${m}&key=${secretKey}`);
@@ -557,12 +584,21 @@
                     logEl.innerText += ` ${data.message || data.error || ''}`;
                     const warnings = (data.logs || []).filter(l => l.includes('⚠️'));
                     if (warnings.length > 0) logEl.innerText += `\n   ${warnings.join('\n   ')}`;
-                } catch (e) { logEl.innerText += ` ❌ 네트워크 에러`; }
+                    if (!data.success) allOk = false;
+                } catch (e) { logEl.innerText += ` ❌ 네트워크 에러`; allOk = false; }
                 if (m < 12 && !isCancelled) await new Promise(r => setTimeout(r, 800));
             }
             toggleCancelBtn(false);
-            logEl.innerText += `\n\n🎉 완료!`;
-            saveHistory('gen', 'link-daily-year', true);
+            if (isCancelled) {
+                statusDiv.innerText = '🛑 중지됨'; statusDiv.style.color = 'var(--warn-text)';
+            } else if (allOk) {
+                logEl.innerText += `\n\n🎉 완료!`;
+                statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)';
+            } else {
+                logEl.innerText += `\n\n⚠️ 일부 실패했습니다. 위 로그를 확인해주세요.`;
+                statusDiv.innerText = '⚠️ 일부 실패 (로그 확인)'; statusDiv.style.color = 'var(--fail-text)';
+            }
+            saveHistory('gen', 'link-daily-year', allOk);
         }
 
         async function runWeeksGenerator() { generatePages('weeks'); }

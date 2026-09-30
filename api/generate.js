@@ -255,6 +255,24 @@ module.exports = async (req, res) => {
             }
         };
 
+        // 사용자가 Last Month/Next Month 같은 관계형 속성을 지웠거나 다른 이름으로
+        // 바꿔둔 DB도 있을 수 있다. 그런 속성을 포함해서 업데이트를 보내면 노션이
+        // 전체 요청을 통째로 거부해서(하나라도 없는 속성이 있으면 전부 실패) Month
+        // Check/Year처럼 실제로 존재하는 속성까지 같이 실패해버린다. 그래서 DB별로
+        // 실제 존재하는 속성 이름을 미리 확인해두고, 없는 속성은 조용히 빼고 보낸다.
+        const dbPropCache = {};
+        const getDbPropertyNames = async (dbId) => {
+            if (!dbId) return new Set();
+            if (dbPropCache[dbId]) return dbPropCache[dbId];
+            try {
+                const info = await notion.databases.retrieve({ database_id: dbId });
+                const names = new Set(Object.keys(info.properties));
+                dbPropCache[dbId] = names;
+                return names;
+            } catch (e) { return new Set(); }
+        };
+        const missingPropsSeen = new Set();
+
         const findByTitle = (arr, title) => arr.find(a => a.title === title)?.id;
         const updates = [];
         
@@ -267,19 +285,19 @@ module.exports = async (req, res) => {
                 getPages(MONTHLY_DB_ID, yStart, yEnd), getPages(FINANCE_MONTHLY_DB_ID, yStart, yEnd)
             ]);
 
-            const processMonth = (arr) => {
+            const processMonth = (arr, dbId) => {
                 arr.forEach((m, i) => {
                     if (!m.start || !m.start.startsWith(targetYear.toString())) return;
                     const props = {
                         "Month Check": [{id: m.id}],
-                        "Last Month": arr[i-1] ? [{id: arr[i-1].id}] : [], 
+                        "Last Month": arr[i-1] ? [{id: arr[i-1].id}] : [],
                         "Next Month": arr[i+1] ? [{id: arr[i+1].id}] : []
                     };
                     if (yearId) props["Year"] = [{id: yearId}];
-                    updates.push({ id: m.id, props });
+                    updates.push({ id: m.id, props, dbId });
                 });
             };
-            processMonth(months); processMonth(finMonths);
+            processMonth(months, MONTHLY_DB_ID); processMonth(finMonths, FINANCE_MONTHLY_DB_ID);
         }
 
         if (target === 'weeks') {
@@ -294,7 +312,7 @@ module.exports = async (req, res) => {
                 getPages(WEEKLY_DB_ID, fetchStart, fetchEnd), getPages(FINANCE_WEEKLY_DB_ID, fetchStart, fetchEnd)
             ]);
 
-            const processWeek = (arr, isFin) => {
+            const processWeek = (arr, isFin, dbId) => {
                 arr.forEach((w, i) => {
                     // 제목 문자열을 쪼개서 월을 알아내던 예전 방식은 제목이 예상과 다른
                     // 페이지(공백 제목, 수동 편집 등)를 만나면 예외를 던져 전체 요청을
@@ -317,10 +335,10 @@ module.exports = async (req, res) => {
                     };
                     if (yearId) props["Year"] = [{id: yearId}];
                     if (mId) props["Month Check"] = [{id: mId}];
-                    updates.push({ id: w.id, props });
+                    updates.push({ id: w.id, props, dbId });
                 });
             };
-            processWeek(weeks, false); processWeek(finWeeks, true);
+            processWeek(weeks, false, WEEKLY_DB_ID); processWeek(finWeeks, true, FINANCE_WEEKLY_DB_ID);
         }
 
         if (target === 'daily') {
@@ -348,7 +366,7 @@ module.exports = async (req, res) => {
                 if (yearId) props["Year"] = [{id: yearId}];
                 if (mId) props["Month Check"] = [{id: mId}];
                 if (wObj) props["Week Check"] = [{id: wObj.id}];
-                updates.push({ id: d.id, props });
+                updates.push({ id: d.id, props, dbId: DAILY_DB_ID });
             });
         }
 
@@ -356,8 +374,19 @@ module.exports = async (req, res) => {
         for (let i = 0; i < updates.length; i += 5) {
             const batch = updates.slice(i, i + 5);
             await Promise.all(batch.map(async u => {
+                const validNames = await getDbPropertyNames(u.dbId);
                 const finalProps = {};
-                for (const key in u.props) finalProps[key] = { relation: u.props[key] };
+                for (const key in u.props) {
+                    if (validNames.size > 0 && !validNames.has(key)) {
+                        if (!missingPropsSeen.has(key)) {
+                            missingPropsSeen.add(key);
+                            traceLogs.push(`⚠️ "${key}" 속성이 없어서 이 연결은 건너뜁니다. (속성명이 다르거나 삭제된 것 같습니다)`);
+                        }
+                        continue;
+                    }
+                    finalProps[key] = { relation: u.props[key] };
+                }
+                if (Object.keys(finalProps).length === 0) { successCount++; return; }
                 try {
                     await notion.pages.update({ page_id: u.id, properties: finalProps });
                     successCount++;
