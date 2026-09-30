@@ -441,13 +441,33 @@
         }
         function updateLogBoxes(text, isAppend = false) { document.querySelectorAll('.log-box').forEach(box => { if (isAppend) box.innerText += text; else box.innerText = text; }); }
 
+        // 처리 시간이 오래 걸리는 요청(1년치 생성/연결 등)이 Vercel 함수 제한(60초)에
+        // 걸리면, 브라우저에는 애매한 네트워크 에러나 JSON이 아닌 응답으로만 보인다.
+        // 흔한 타임아웃 신호(504/502/503, JSON 파싱 실패)를 감지해서 "같은 버튼을
+        // 다시 눌러 이어서 진행하라"는 안내로 바꿔준다. 그 외 에러는 그대로 전달한다.
+        async function fetchJsonSafe(url) {
+            let res;
+            try {
+                res = await fetch(url);
+            } catch (e) {
+                throw new Error(`네트워크 요청이 중단됐습니다. 처리 시간이 길어지면서 타임아웃됐을 수 있어요 — 같은 버튼을 다시 눌러 이어서 진행해보세요. (${e.message})`);
+            }
+            if (res.status === 504 || res.status === 502 || res.status === 503) {
+                throw new Error(`⏱️ 처리 시간이 너무 길어 서버에서 중단됐습니다 (타임아웃). 지금까지 처리된 부분은 남아있으니, 같은 버튼을 다시 눌러 이어서 진행해주세요.`);
+            }
+            try {
+                return await res.json();
+            } catch (e) {
+                throw new Error(`⏱️ 응답을 읽지 못했습니다. 처리 시간이 길어 중간에 끊겼을 가능성이 높습니다 (타임아웃) — 같은 버튼을 다시 눌러 이어서 진행해주세요.`);
+            }
+        }
+
         async function runBackup(mode) {
             isCancelled = false; toggleCancelBtn(true);
             document.getElementById('history-container-backup').style.display = 'block'; document.getElementById('logBox-backup').classList.add('active'); document.getElementById('icon-backup').innerText = '▲';
             updateLogBoxes(`🚀 [${mode}] 동기화 시작...\n\n`);
             try {
-                const res = await fetch(`/api/cron?mode=${mode}&target_dbs=${getTargetDBs()}&key=${secretKey}`);
-                const data = await res.json();
+                const data = await fetchJsonSafe(`/api/cron?mode=${mode}&target_dbs=${getTargetDBs()}&key=${secretKey}`);
                 if (data.success) {
                     updateLogBoxes((data.logs || []).join('\n') + '\n\n✨ 완료!', true);
                     saveHistory('backup', mode, true);
@@ -455,7 +475,7 @@
                     updateLogBoxes(`❌ 에러: ${data.error}`, true);
                     saveHistory('backup', mode, false);
                 }
-            } catch (e) { alert("통신 에러"); }
+            } catch (e) { updateLogBoxes(`❌ ${e.message}`, true); saveHistory('backup', mode, false); }
             toggleCancelBtn(false);
         }
 
@@ -466,11 +486,15 @@
             isCancelled = false; toggleCancelBtn(true);
             document.getElementById('history-container-backup').style.display = 'block'; document.getElementById('logBox-backup').classList.add('active'); document.getElementById('icon-backup').innerText = '▲';
             try {
-                const res = await fetch(`/api/cron?mode=range&start_date=${s}&end_date=${e}&target_dbs=${getTargetDBs()}&key=${secretKey}`);
-                const data = await res.json();
-                updateLogBoxes((data.logs || []).join('\n') + '\n✨ 구간 백업 완료!', true);
-                saveHistory('backup', 'Range Restore', true);
-            } catch (err) { alert("에러 발생"); saveHistory('backup', 'Range Restore', false); }
+                const data = await fetchJsonSafe(`/api/cron?mode=range&start_date=${s}&end_date=${e}&target_dbs=${getTargetDBs()}&key=${secretKey}`);
+                if (data.success) {
+                    updateLogBoxes((data.logs || []).join('\n') + '\n✨ 구간 백업 완료!', true);
+                    saveHistory('backup', 'Range Restore', true);
+                } else {
+                    updateLogBoxes(`❌ 에러: ${data.error}`, true);
+                    saveHistory('backup', 'Range Restore', false);
+                }
+            } catch (err) { updateLogBoxes(`❌ ${err.message}`, true); saveHistory('backup', 'Range Restore', false); }
             toggleCancelBtn(false);
         }
 
@@ -483,8 +507,7 @@
             statusDiv.innerText = '⏳ 처리 중...'; statusDiv.style.color = 'var(--text-main)';
             logEl.innerText = `⏳ 생성 요청 중... (몇 초 걸릴 수 있습니다)`;
             try {
-                const res = await fetch(`/api/generate?type=${type}&year=${y}&month=${m}&key=${secretKey}`);
-                const data = await res.json();
+                const data = await fetchJsonSafe(`/api/generate?type=${type}&year=${y}&month=${m}&key=${secretKey}`);
                 if (data.success) {
                     logEl.innerText = (data.logs || []).join('\n') + (data.logs ? '\n' : '') + (data.message || '');
                     statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)';
@@ -495,7 +518,7 @@
                     saveHistory('gen', `gen-${type}`, false);
                 }
             } catch (e) {
-                logEl.innerText = `❌ 네트워크 에러: ${e.message}`;
+                logEl.innerText = `❌ ${e.message}`;
                 statusDiv.innerText = '❌ 실패'; statusDiv.style.color = 'var(--fail-text)';
                 saveHistory('gen', `gen-${type}`, false);
             }
@@ -510,8 +533,7 @@
             statusDiv.innerText = '⏳ 처리 중...'; statusDiv.style.color = 'var(--text-main)';
             logEl.innerText = `⏳ 연결 요청 중... (몇 초 걸릴 수 있습니다)`;
             try {
-                const res = await fetch(`/api/generate?type=link&target=${target}&year=${y}&month=${m}&key=${secretKey}`);
-                const data = await res.json();
+                const data = await fetchJsonSafe(`/api/generate?type=link&target=${target}&year=${y}&month=${m}&key=${secretKey}`);
                 if (data.success) {
                     logEl.innerText = (data.logs || []).join('\n') + (data.logs ? '\n' : '') + (data.message || '');
                     statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)';
@@ -522,7 +544,7 @@
                     saveHistory('gen', `link-${target}`, false);
                 }
             } catch (e) {
-                logEl.innerText = `❌ 네트워크 에러: ${e.message}`;
+                logEl.innerText = `❌ ${e.message}`;
                 statusDiv.innerText = '❌ 실패'; statusDiv.style.color = 'var(--fail-text)';
                 saveHistory('gen', `link-${target}`, false);
             }
@@ -545,11 +567,10 @@
                 statusDiv.innerText = `⏳ 생성 중... (${m}/12)`;
                 logEl.innerText += `\n▶️ [${m}/12] ${m}월 생성 중...`;
                 try {
-                    const res = await fetch(`/api/generate?type=daily&year=${y}&month=${m}&key=${secretKey}`);
-                    const data = await res.json();
+                    const data = await fetchJsonSafe(`/api/generate?type=daily&year=${y}&month=${m}&key=${secretKey}`);
                     logEl.innerText += ` ${data.message || data.error || ''}`;
                     if (!data.success) allOk = false;
-                } catch (e) { logEl.innerText += ` ❌ 네트워크 에러`; allOk = false; }
+                } catch (e) { logEl.innerText += `\n   ❌ ${e.message}`; allOk = false; }
                 if (m < 12 && !isCancelled) await new Promise(r => setTimeout(r, 800));
             }
             toggleCancelBtn(false);
@@ -579,13 +600,12 @@
                 statusDiv.innerText = `⏳ 연결 중... (${m}/12)`;
                 logEl.innerText += `\n▶️ [${m}/12] ${m}월 연결 중...`;
                 try {
-                    const res = await fetch(`/api/generate?type=link&target=daily&year=${y}&month=${m}&key=${secretKey}`);
-                    const data = await res.json();
+                    const data = await fetchJsonSafe(`/api/generate?type=link&target=daily&year=${y}&month=${m}&key=${secretKey}`);
                     logEl.innerText += ` ${data.message || data.error || ''}`;
                     const warnings = (data.logs || []).filter(l => l.includes('⚠️'));
                     if (warnings.length > 0) logEl.innerText += `\n   ${warnings.join('\n   ')}`;
                     if (!data.success) allOk = false;
-                } catch (e) { logEl.innerText += ` ❌ 네트워크 에러`; allOk = false; }
+                } catch (e) { logEl.innerText += `\n   ❌ ${e.message}`; allOk = false; }
                 if (m < 12 && !isCancelled) await new Promise(r => setTimeout(r, 800));
             }
             toggleCancelBtn(false);
@@ -613,8 +633,7 @@
             const logBox = document.getElementById('logBox-holiday');
             logBox.innerText = `🚀 ${year}년 공휴일/기념일/24절기 생성 요청 중...\n(중복 확인 포함이라 몇 초 걸릴 수 있습니다)\n\n`;
             try {
-                const res = await fetch(`/api/holidays?year=${year}&key=${secretKey}`);
-                const data = await res.json();
+                const data = await fetchJsonSafe(`/api/holidays?year=${year}&key=${secretKey}`);
                 if (data.success) {
                     logBox.innerText += (data.logs || []).join('\n') + `\n\n✅ ${data.message}`;
                     statusDiv.innerText = "✅ 완료!"; statusDiv.style.color = "var(--success-text)";
@@ -625,7 +644,7 @@
                     saveHistory('holiday', `${year}년 생성`, false);
                 }
             } catch (err) {
-                logBox.innerText += `\n❌ 네트워크 에러: ${err.message}`;
+                logBox.innerText += `\n❌ ${err.message}`;
                 statusDiv.innerText = "❌ 실패"; statusDiv.style.color = "var(--fail-text)";
                 saveHistory('holiday', `${year}년 생성`, false);
             }
@@ -664,9 +683,9 @@
             const getKSTDate = () => { const now = new Date(); const kstTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); return kstTime.toISOString().split('T')[0]; };
             const date = dateOverride || getKSTDate(); showTlLogs(); tlLog(`🕐 [Timeline] ${date} 생성 요청 중...\n`);
             try {
-                const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=day&date=${date}${cb}`); const data = await res.json();
+                const cb = `&t=${Date.now()}&key=${secretKey}`; const data = await fetchJsonSafe(`/api/timeline?mode=day&date=${date}${cb}`);
                 if (data.success) { tlLog(`\n✅ ${data.message}`, true); saveHistory('tl', date, true); } else { tlLog(`\n❌ ${data.message || data.error}`, true); saveHistory('tl', date, false); }
-            } catch (err) { tlLog(`\n❌ 네트워크 에러`, true); saveHistory('tl', date, false); }
+            } catch (err) { tlLog(`\n❌ ${err.message}`, true); saveHistory('tl', date, false); }
         }
 
         async function runTimelineDateRange() {
@@ -679,9 +698,9 @@
                 if (isCancelled) { tlLog(`\n🛑 중지됨.`, true); allOk = false; break; }
                 const yyyy = current.getFullYear(); const mm = String(current.getMonth() + 1).padStart(2, '0'); const dd = String(current.getDate()).padStart(2, '0'); const dateStr = `${yyyy}-${mm}-${dd}`;
                 try {
-                    const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=day&date=${dateStr}${cb}`); const data = await res.json();
+                    const cb = `&t=${Date.now()}&key=${secretKey}`; const data = await fetchJsonSafe(`/api/timeline?mode=day&date=${dateStr}${cb}`);
                     if (data.success) { tlLog(`\n  ➡️ [${dateStr}] ${data.message}`, true); } else { tlLog(`\n  ➡️ ❌ [${dateStr}] 에러`, true); allOk = false; break; }
-                } catch (err) { tlLog(`\n  ➡️ ❌ [${dateStr}] 네트워크 에러`, true); allOk = false; break; }
+                } catch (err) { tlLog(`\n  ➡️ ❌ [${dateStr}] ${err.message}`, true); allOk = false; break; }
                 current.setDate(current.getDate() + 1); if (current <= endDate) await new Promise(r => setTimeout(r, 600));
             }
             toggleCancelBtn(false); if (allOk) tlLog(`\n\n🎉 완료!`, true);
@@ -695,9 +714,9 @@
                 if (isCancelled) { tlLog(`\n🛑 중지됨.`, true); allOk = false; break; }
                 const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 try {
-                    const cb = `&t=${Date.now()}&key=${secretKey}`; const res = await fetch(`/api/timeline?mode=day&date=${dateStr}${cb}`); const data = await res.json();
+                    const cb = `&t=${Date.now()}&key=${secretKey}`; const data = await fetchJsonSafe(`/api/timeline?mode=day&date=${dateStr}${cb}`);
                     if (data.success) { tlLog(`\n  ➡️ [${dateStr}] ${data.message}`, true); } else { tlLog(`\n  ➡️ ❌ [${dateStr}] 에러`, true); allOk = false; break; }
-                } catch (err) { tlLog(`\n  ➡️ ❌ [${dateStr}] 네트워크 에러`, true); allOk = false; break; }
+                } catch (err) { tlLog(`\n  ➡️ ❌ [${dateStr}] ${err.message}`, true); allOk = false; break; }
             }
             if (!silent) { toggleCancelBtn(false); if (allOk) { tlLog(`\n\n🎉 ${label} 완료!`, true); saveHistory('tl', label, true); } else { tlLog(`\n\n🚨 중단됨.`, true); saveHistory('tl', label, false); } }
             return allOk;
@@ -723,8 +742,7 @@
             resultBox.innerHTML = '노션 서버와 통신 중입니다... (최대 10초 소요)';
 
             try {
-                const res = await fetch(`/api/check?t=${Date.now()}`);
-                const data = await res.json();
+                const data = await fetchJsonSafe(`/api/check?t=${Date.now()}`);
 
                 if (data.details && data.details.length > 0) {
                     let html = `<ul style="list-style:none; padding:0; margin:0;">`;
@@ -746,7 +764,7 @@
                     resultBox.innerHTML = `❌ 오류: ${data.message || '응답을 받을 수 없습니다.'}`;
                 }
             } catch (e) {
-                resultBox.innerHTML = `❌ 네트워크 에러가 발생했습니다.`;
+                resultBox.innerHTML = `❌ ${e.message}`;
             } finally {
                 btn.innerText = '🔍 일괄 연결 테스트 다시 실행';
                 btn.style.opacity = '1';

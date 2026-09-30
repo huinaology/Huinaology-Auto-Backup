@@ -18,13 +18,70 @@ async function getOrSearchDbId(notion, envId, keyword) {
     } catch (e) { return null; }
 }
 
-// 기존 Public 라벨 형식(디자인) 그대로 유지: "MM-DD HH:00" (아이콘/색상 없음)
-function hourLabel(dateISO, hour) {
-    return `${dateISO.substring(5)} ${String(hour).padStart(2, '0')}:00`;
+// =====================================================================
+// 시간대별 색상 + 아이콘 (개인용 타임라인 생성기와 같은 구조, Public 색상만 적용)
+//   남색 #373c8a : 밤시간대 (0~6시)
+//   노랑 #e3c8a6 : 보편적 여가시간대 (7~8시, 18~23시)
+//   적색 #d39694 : 대부분의 업무시간대 (9~17시)
+//   8/12/17/23시는 "채운" 박스로 구분(아침/점심/퇴근/자정), 나머지는 테두리만.
+// =====================================================================
+const COLOR_NIGHT = '373c8a';
+const COLOR_LEISURE = 'e3c8a6';
+const COLOR_WORK = 'd39694';
+const FILLED_HOURS = new Set([8, 12, 17, 23]);
+
+function hourColor(h) {
+    if (h <= 6) return COLOR_NIGHT;
+    if (h <= 8 || h >= 18) return COLOR_LEISURE;
+    return COLOR_WORK;
+}
+
+// 노션 자체 아이콘과 유사한 lucide 시계 아이콘(1~12시 방향)을 시간에 맞게 적용.
+function getClockIcon(hour) {
+    const clockNum = hour % 12 || 12;
+    const isDaytime = hour >= 6 && hour <= 17;
+    const color = isDaytime ? '%23999999' : '%23333333';
+    return `https://api.iconify.design/lucide/clock-${clockNum}.svg?color=${color}`;
+}
+
+// 제목에 쓸 컬러 박스 수식(이퀘이션) 블록을 만든다.
+// 예: \fcolorbox{373c8a}{373c8a}{\color{ffffff}{\enspace0:00-1:00\enspace}}
+function makeHourTitle(h) {
+    const color = hourColor(h);
+    const label = `${h}:00-${h + 1}:00`;
+    const expression = FILLED_HOURS.has(h)
+        ? `\\fcolorbox{${color}}{${color}}{\\color{ffffff}{\\enspace${label}\\enspace}}`
+        : `\\fcolorbox{${color}}{ffffff}{\\color{${color}}{\\enspace${label}\\enspace}}`;
+    return [{ type: 'equation', equation: { expression } }];
+}
+
+function titleEquals(currentArr, expectedArr) {
+    const a = currentArr || [];
+    if (a.length !== expectedArr.length) return false;
+    return a.every((rt, i) => {
+        const exp = expectedArr[i];
+        if (rt.type !== exp.type) return false;
+        if (rt.type === 'equation') return rt.equation?.expression === exp.equation?.expression;
+        return true;
+    });
+}
+
+// 페이지 제목에서 시간을 알아낸다. 컬러 이퀘이션(새 형식: "H:00-H:00")과, 예전 버전에서
+// 만들어진 일반 텍스트("MM-DD HH:00") 둘 다 인식한다 - 예전 형식으로 이미 만들어진
+// 페이지도 새로 만들지 않고 찾아서 이번 기회에 새 형식으로 갱신(마이그레이션)한다.
+function extractHourFromTitle(page, titlePropName) {
+    const titleArr = page.properties[titlePropName]?.title;
+    if (!titleArr || titleArr.length === 0) return null;
+    const text = titleArr.map(t => t.plain_text || (t.type === 'equation' ? t.equation.expression : '')).join('');
+    let match = text.match(/(\d{1,2})\s*:\s*00\s*-\s*\d{1,2}\s*:\s*00/);
+    if (match) return parseInt(match[1], 10);
+    match = text.match(/^\d{2}-\d{2}\s+(\d{2}):00$/);
+    if (match) return parseInt(match[1], 10);
+    return null;
 }
 
 // 정시~정시+1시간(정확히 60분)짜리 KST 구간을 만든다.
-//   ※ 예전 방식(정시~:59분)은 각 시간 사이에 1분씩 빈틈이 생겨 합계 계산이 어긋나므로 폐기.
+//   ※ 정시~:59분 방식은 각 시간 사이에 1분씩 빈틈이 생겨 합계 계산이 어긋나므로 사용하지 않는다.
 function hourSlotRange(dateISO, hour) {
     const start = DateTime.fromISO(dateISO, { zone: 'Asia/Seoul' }).plus({ hours: hour });
     const end = start.plus({ hours: 1 });
@@ -45,12 +102,14 @@ async function findDailyPageId(notion, dailyDbId, dateISO, schedPropName) {
 
 // =====================================================================
 // 하루치 24시간 타임라인을 점검한다.
-//  - 없는 시간대는 새로 만든다.
-//  - 이미 있는데 Schedule이 정확한 정시~정시+1시간이 아니거나 Backup 연결이
-//    빠져있으면 그 부분만 고친다 (자동 생성분에 한해서만).
-//  - "자동 생성분"인지 판별하는 기준은 제목이 hourLabel() 형식과 정확히
-//    일치하는지 여부뿐이다. 사용자가 편의상 만든 페이지(예: "11:30-12:00"
-//    같은 커스텀 제목)는 이 형식과 다르므로 절대 건드리지 않는다.
+//  - 없는 시간대는 새로 만든다 (컬러 제목 + 시간대별 시계 아이콘).
+//  - 이미 있으면: 제목이 표준 형식이 아니면 새 형식으로 갱신(예전 버전 페이지 마이그레이션
+//    포함), 아이콘도 다시 맞추고, Schedule이 정확한 정시~정시+1시간이 아니면 고치고,
+//    Backup이 그 날짜의 Daily 페이지 "정확히 하나만" 있는 상태가 아니면(누락이든 중복이든)
+//    바로잡는다.
+//  - "자동 생성분"인지 판별하는 기준은 제목에서 "H:00-H:00" 형태의 시간 범위를 추출할 수
+//    있는지 여부뿐이다. 사용자가 편의상 만든 페이지(예: "11:30-12:00" 같은 30분 단위
+//    커스텀 제목)는 이 형식과 다르므로 절대 건드리지 않는다.
 // =====================================================================
 async function scanAndFixDay(notion, timelineDbId, dailyDbId, dateISO, schedPropName, titlePropName, backupPropName) {
     const dayStart = dateISO;
@@ -72,14 +131,10 @@ async function scanAndFixDay(notion, timelineDbId, dailyDbId, dateISO, schedProp
         await delay(120);
     }
 
-    // 제목이 우리 표준 라벨과 정확히 일치하는 페이지만 "자동 생성분"으로 인식
     const byHour = new Map();
     existingPages.forEach(p => {
-        const titleArr = p.properties[titlePropName]?.title || [];
-        const titleText = titleArr.map(t => t.plain_text).join('');
-        for (let h = 0; h < 24; h++) {
-            if (titleText === hourLabel(dateISO, h)) { byHour.set(h, p); break; }
-        }
+        const h = extractHourFromTitle(p, titlePropName);
+        if (h !== null && h >= 0 && h <= 23 && !byHour.has(h)) byHour.set(h, p);
     });
 
     const dailyPageId = await findDailyPageId(notion, dailyDbId, dateISO, schedPropName);
@@ -88,36 +143,55 @@ async function scanAndFixDay(notion, timelineDbId, dailyDbId, dateISO, schedProp
     for (let h = 0; h < 24; h++) {
         const { start, end } = hourSlotRange(dateISO, h);
         const page = byHour.get(h);
+        const expectedTitle = makeHourTitle(h);
+        const iconUrl = getClockIcon(h);
 
         if (!page) {
             const properties = {
-                [titlePropName]: { title: [{ text: { content: hourLabel(dateISO, h) } }] },
+                [titlePropName]: { title: expectedTitle },
                 [schedPropName]: { date: { start, end } }
             };
             if (dailyPageId && backupPropName) properties[backupPropName] = { relation: [{ id: dailyPageId }] };
             try {
-                await notion.pages.create({ parent: { database_id: timelineDbId }, properties });
+                await notion.pages.create({
+                    parent: { database_id: timelineDbId },
+                    properties,
+                    icon: { type: 'external', external: { url: iconUrl } }
+                });
                 created++;
             } catch (e) {
-                addLog(`  ❌ [${hourLabel(dateISO, h)}] 생성 실패: ${e.message}`);
+                addLog(`  ❌ [${h}시] 생성 실패: ${e.message}`);
             }
         } else {
             const sched = page.properties[schedPropName]?.date;
             const isExactTime = !!(sched && sched.start && sched.end
                 && DateTime.fromISO(sched.start).toMillis() === DateTime.fromISO(start).toMillis()
                 && DateTime.fromISO(sched.end).toMillis() === DateTime.fromISO(end).toMillis());
-            const currentBackupIds = backupPropName ? (page.properties[backupPropName]?.relation || []).map(r => r.id) : [];
-            const needsBackupFix = !!(dailyPageId && backupPropName && !currentBackupIds.includes(dailyPageId));
 
-            if (!isExactTime || needsBackupFix) {
+            const currentBackupIds = backupPropName ? (page.properties[backupPropName]?.relation || []).map(r => r.id) : [];
+            const desiredBackupIds = dailyPageId ? [dailyPageId] : [];
+            // "누락된 것만 추가"가 아니라 "정확히 이 하나만 있는지"를 확인한다.
+            // 그래야 예전에 잘못 누적된 중복 Backup(예: 지난달 것 + 이번달 것)도
+            // 다음 실행 때 자동으로 정리된다.
+            const backupMatches = currentBackupIds.length === desiredBackupIds.length
+                && currentBackupIds.every(id => desiredBackupIds.includes(id));
+            const needsBackupFix = !!(backupPropName && !backupMatches);
+
+            const titleMatches = titleEquals(page.properties[titlePropName]?.title, expectedTitle);
+            const iconMatches = page.icon?.type === 'external' && page.icon.external?.url === iconUrl;
+
+            if (!isExactTime || needsBackupFix || !titleMatches || !iconMatches) {
                 const updateProps = {};
                 if (!isExactTime) updateProps[schedPropName] = { date: { start, end } };
-                if (needsBackupFix) updateProps[backupPropName] = { relation: [{ id: dailyPageId }] };
+                if (needsBackupFix) updateProps[backupPropName] = { relation: desiredBackupIds.map(id => ({ id })) };
+                if (!titleMatches) updateProps[titlePropName] = { title: expectedTitle };
+                const updatePayload = { page_id: page.id, properties: updateProps };
+                if (!iconMatches) updatePayload.icon = { type: 'external', external: { url: iconUrl } };
                 try {
-                    await notion.pages.update({ page_id: page.id, properties: updateProps });
+                    await notion.pages.update(updatePayload);
                     fixed++;
                 } catch (e) {
-                    addLog(`  ❌ [${hourLabel(dateISO, h)}] 수정 실패: ${e.message}`);
+                    addLog(`  ❌ [${h}시] 수정 실패: ${e.message}`);
                 }
             } else {
                 skipped++;

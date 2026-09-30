@@ -926,11 +926,17 @@ async function executeSync(params) {
             const backupKey = Object.keys(p.properties).find(k => k.toLowerCase() === Config.SCHEMA.BACKUP.name.toLowerCase());
             const currentBackupIds = backupKey ? (p.properties[backupKey]?.relation || []).map(r => r.id) : [];
 
+            // Timetable/Pomodoro 페이지는 하루의 특정 시간 하나에만 속하므로, Backup은
+            // "그 날짜의 Daily 하나만" 정확히 있어야 한다. 부족분만 추가하면 예전에
+            // 잘못 걸린 다른 날짜 Daily가 계속 같이 남아 중복이 쌓인다 - 그래서 "정확히
+            // 이 하나만 있는지"를 확인해서 다르면 통째로 교체한다.
             const dailyId = findDailyId2(dateStr);
-            if (dailyId && !currentBackupIds.includes(dailyId) && backupKey) {
+            const desiredIds = dailyId ? [dailyId] : [];
+            const alreadyCorrect = currentBackupIds.length === desiredIds.length
+                && currentBackupIds.every(id => desiredIds.includes(id));
+            if (backupKey && !alreadyCorrect) {
               try {
-                const newRelation = [...currentBackupIds.map(id => ({ id })), { id: dailyId }];
-                await notion.pages.update({ page_id: p.id, properties: { [backupKey]: { relation: newRelation } } });
+                await notion.pages.update({ page_id: p.id, properties: { [backupKey]: { relation: desiredIds.map(id => ({ id })) } } });
                 linked++;
                 await delay(150);
               } catch (e) { subFailed++; debugLog(`  [ERR] ${subDb.name}: ${e.message}`); }
