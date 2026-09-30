@@ -23,12 +23,12 @@ async function getOrSearchDbId(notion, envId, keyword) {
 //   남색 #373c8a : 밤시간대 (0~6시)
 //   노랑 #e3c8a6 : 보편적 여가시간대 (7~8시, 18~23시)
 //   적색 #d39694 : 대부분의 업무시간대 (9~17시)
-//   8/12/17/23시는 "채운" 박스로 구분(아침/점심/퇴근/자정), 나머지는 테두리만.
+//   0/8/12/17/23시는 "채운" 박스로 구분(자정/아침/점심/퇴근), 나머지는 테두리만.
 // =====================================================================
 const COLOR_NIGHT = '373c8a';
 const COLOR_LEISURE = 'e3c8a6';
 const COLOR_WORK = 'd39694';
-const FILLED_HOURS = new Set([8, 12, 17, 23]);
+const FILLED_HOURS = new Set([0, 8, 12, 17, 23]);
 
 function hourColor(h) {
     if (h <= 6) return COLOR_NIGHT;

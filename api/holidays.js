@@ -61,24 +61,26 @@ function holidayBadgeRichText() {
 //        - s   : 시작일 (YYYY-MM-DD)
 //        - e   : 연휴 마지막날 (하루짜리면 생략 가능)
 //        - cat : 'holiday'(법정공휴일) | 'other'(기념일) | 'term'(24절기)
-//     2) YEAR_DATA에 없는 연도는 아래 computeYear()가 "고정일(양력) + 24절기"
-//        만 자동으로 계산해서 채웁니다. 설날/추석/부처님오신날(음력 3종)은
-//        표에 없으면 절대 자동으로 만들지 않고, 안내 로그만 남깁니다.
-//        즉, 새해가 오면 YEAR_DATA에 그 해의 음력 3종 날짜를 추가해줘야
-//        자동 생성 대상에 포함됩니다. (구매처 업데이트 안내를 통해 매년
-//        갱신된 코드를 배포할 예정입니다.)
+//     2) YEAR_DATA에 없는 연도는 아래 computeYear()가 자동으로 채웁니다.
+//        - KASI_API_KEY 환경변수가 설정되어 있으면: 법정공휴일 전체(대체공휴일 포함,
+//          설날/추석/부처님오신날 음력 3종 포함) + 24절기 + 한식/초복/중복/말복/단오를
+//          한국천문연구원 API로 매년 자동으로 정확하게 조회해 채웁니다. 별도 코드
+//          수정이 필요 없습니다. (근로자의 날만은 근로기준법 소관이라 이 API 대상이
+//          아니므로 항상 고정 날짜로 생성됩니다.)
+//        - 설정되어 있지 않거나 호출이 실패하면: 예전과 동일하게 고정 날짜 +
+//          근사치 24절기 + 자체 대체공휴일 계산으로 동작하고, 설날/추석/부처님오신날은
+//          생성하지 않고 안내 로그만 남깁니다. 이 경우 YEAR_DATA 표에 그 해의
+//          음력 3종 날짜를 직접 추가해줘야 합니다.
 //
-//   [더 정확한 음력 데이터 연결을 원한다면]
+//   [KASI_API_KEY 발급 방법]
 //   한국천문연구원이 공공데이터포털을 통해 제공하는 "특일 정보" 오픈API를
-//   신청해서 연동하면, 음력↔양력 변환과 공휴일 정보를 매년 직접 입력하지
-//   않아도 API 응답 기준으로 정확하게 가져올 수 있습니다.
+//   신청하면, 음력↔양력 변환과 공휴일 정보를 매년 직접 입력하지 않아도
+//   API 응답 기준으로 정확하게 가져올 수 있습니다.
 //     - 신청/설명 페이지: https://www.data.go.kr/data/15012690/openapi.do
 //     - 공공데이터포털(data.go.kr) 로그인 → 위 페이지에서 "활용신청" →
-//       발급된 인증키로 getRestDeInfo(공휴일)/getLunCalInfo(음력변환) 등의
-//       오퍼레이션을 호출하는 방식입니다.
-//   ※ 이 위젯은 현재 이 API를 직접 호출하지 않고, 아래 YEAR_DATA 표를
-//     수동으로 갱신하는 방식으로만 동작합니다. API 연동은 별도 신청/개발이
-//     필요한 선택 사항입니다.
+//       발급된 "일반 인증키(Decoding)"를 Vercel 프로젝트의 환경변수
+//       KASI_API_KEY 에 등록 → 재배포. 이후 위젯 코드는 그대로 두고
+//       Holiday Generator를 실행하면 자동으로 API 기준으로 전환됩니다.
 // =====================================================================
 const YEAR_DATA = {
     2026: [
@@ -169,36 +171,174 @@ function nextFreeWeekday(dt, usedDates) {
     return d;
 }
 
-// 표에 없는 연도: 고정 항목 + 24절기만 자동 계산 (음력 3종은 생성하지 않음)
-function computeYear(year) {
-    const items = [];
-    const usedDates = new Set();
+// =====================================================================
+// 한국천문연구원 "특일 정보" API — 설날/추석/부처님오신날(음력) 날짜 조회 (선택 사항).
+//   KASI_API_KEY 환경변수를 설정하면, 표에 없는 연도도 이 API로 (1) 법정공휴일
+//   전체(대체공휴일 포함, 음력 3종 포함), (2) 24절기, (3) 한식/초복/중복/말복/단오 등
+//   잡절까지 전부 정확하게 채운다. API가 실제로 그 해 정부 고시 기준 날짜를 돌려주므로,
+//   대체공휴일도 자체 요일 계산(nextFreeWeekday) 없이 API 응답을 그대로 신뢰한다.
+//   설정하지 않았거나 호출이 실패하면, 기존처럼 고정 날짜 + 근사치 24절기/잡절 +
+//   자체 대체공휴일 계산으로 조용히 대체된다 (동작 자체가 끊기지 않음).
+//   ※ 근로자의 날은 "근로기준법" 소관이라 이 API(관공서 공휴일 규정 기준) 대상이
+//     아니므로, API 사용 여부와 무관하게 항상 고정 날짜로 생성한다.
+// =====================================================================
+const KASI_BASE = 'https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService';
 
-    FIXED_ITEMS.forEach(f => {
-        const dt = DateTime.fromISO(`${year}-${f.md}`);
-        usedDates.add(dt.toISODate());
-        items.push({ t: f.t, s: dt.toISODate(), cat: f.cat, _dt: dt });
-    });
+async function fetchKasiOperation(operation, year) {
+    const apiKey = Config.ENV.KASI_API_KEY;
+    if (!apiKey) return { items: null, error: null }; // 키 미설정 → 조용히 스킵 (기존 동작과 동일)
 
-    items.forEach(it => {
-        if (!SUB_HOLIDAY_ELIGIBLE.has(it.t)) return;
-        if (it._dt.weekday !== 6 && it._dt.weekday !== 7) return;
-        const sub = nextFreeWeekday(it._dt.plus({ days: 1 }), usedDates);
-        usedDates.add(sub.toISODate());
-        it.e = sub.toISODate();
-    });
-    items.forEach(it => delete it._dt);
+    // data.go.kr 서비스키는 "일반 인증키(Decoding)"를 그대로 써야 한다.
+    // "URL 인증키(Encoding)"를 넣으면 이미 %XX 로 인코딩된 문자열을 또 인코딩해버려 키가 깨진다.
+    if (apiKey.includes('%')) {
+        return { items: null, error: "KASI_API_KEY가 URL 인코딩된 키로 보입니다. data.go.kr 마이페이지 > 개발계정 상세보기에서 '일반 인증키(Decoding)'을 복사해 다시 등록해주세요." };
+    }
 
-    TERM_ITEMS.forEach(term => {
-        items.push({ t: term.t, s: `${year}-${term.md}`, cat: 'term' });
-    });
+    const url = `${KASI_BASE}/${operation}?serviceKey=${apiKey}&solYear=${year}&numOfRows=100&_type=json`;
 
-    return items;
+    let text;
+    try {
+        const resp = await fetch(url);
+        text = await resp.text();
+    } catch (e) {
+        return { items: null, error: `KASI API(${operation}) 요청 실패(네트워크): ${e.message}` };
+    }
+
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        return { items: null, error: `KASI API(${operation}) 응답이 JSON이 아닙니다(키 미승인/오류 가능성). 응답 앞부분: ${text.slice(0, 150)}` };
+    }
+
+    const header = data?.response?.header;
+    if (!header || header.resultCode !== '00') {
+        return { items: null, error: `KASI API(${operation}) 오류: ${header?.resultMsg || '알 수 없는 오류'} (code ${header?.resultCode})` };
+    }
+
+    const raw = data?.response?.body?.items?.item;
+    const list = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+    return { items: list, error: null };
 }
 
-function getYearItems(year) {
-    if (YEAR_DATA[year]) return { items: YEAR_DATA[year], verified: true };
-    return { items: computeYear(year), verified: false };
+const fetchKasiHoliDeInfo = (year) => fetchKasiOperation('getHoliDeInfo', year);       // 법정공휴일(대체공휴일 포함)
+const fetchKasi24Divisions = (year) => fetchKasiOperation('get24DivisionsInfo', year); // 24절기
+const fetchKasiSundryDay = (year) => fetchKasiOperation('getSundryDayInfo', year);     // 잡절(한식/초복/중복/말복/단오 등)
+
+// locdate(YYYYMMDD, 숫자 또는 문자열)를 YYYY-MM-DD로 변환한다.
+function locdateToISO(locdate) {
+    const d = String(locdate);
+    return /^\d{8}$/.test(d) ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : null;
+}
+
+// 표에 없는 연도: KASI_API_KEY가 있으면 공휴일 전체(대체공휴일 포함)/24절기/잡절을
+// API로 채우고, 없거나 호출이 실패하면 기존의 고정 날짜 + 근사치 계산으로 대체한다.
+async function computeYear(year) {
+    const items = [];
+    const usedDates = new Set();
+    const warnings = [];
+
+    // 근로자의 날: API 대상이 아니므로 항상 고정 계산.
+    const laborDay = FIXED_ITEMS.find(f => f.t === '근로자의 날');
+    if (laborDay) {
+        const dt = DateTime.fromISO(`${year}-${laborDay.md}`);
+        items.push({ t: laborDay.t, s: dt.toISODate(), cat: laborDay.cat });
+        usedDates.add(dt.toISODate());
+    }
+
+    // "다른 뭔가"(식목일/어버이날/제헌절/할로윈)는 법정공휴일이 아니라 이 API 대상이
+    // 아니므로 항상 고정 날짜로 생성한다.
+    FIXED_ITEMS.forEach(f => {
+        if (f.cat !== 'other') return;
+        const dt = DateTime.fromISO(`${year}-${f.md}`);
+        items.push({ t: f.t, s: dt.toISODate(), cat: f.cat });
+        usedDates.add(dt.toISODate());
+    });
+
+    // ---- 법정공휴일(신정/설날/삼일절/어린이날/현충일/광복절/추석/개천절/한글날/
+    //      크리스마스/부처님오신날 + 대체공휴일) ----
+    const { items: kasiHolidays, error: holidayError } = await fetchKasiHoliDeInfo(year);
+    if (kasiHolidays) {
+        const byName = new Map(); // dateName -> ISO 날짜 배열
+        kasiHolidays.forEach(it => {
+            if (it.isHoliday !== 'Y') return;
+            const iso = locdateToISO(it.locdate);
+            if (!iso) return;
+            const name = it.dateName || '공휴일';
+            if (!byName.has(name)) byName.set(name, []);
+            byName.get(name).push(iso);
+        });
+        byName.forEach((dates, name) => {
+            dates.sort();
+            dates.forEach(d => usedDates.add(d));
+            items.push({ t: name, s: dates[0], e: dates.length > 1 ? dates[dates.length - 1] : undefined, cat: 'holiday' });
+        });
+        if (byName.size === 0) warnings.push(`⚠️ ${year}년 법정공휴일 정보를 KASI API 응답에서 찾지 못했습니다.`);
+    } else {
+        // API 미설정/실패 → 기존 방식(고정 날짜 + 자체 대체공휴일 계산)으로 대체.
+        if (holidayError) warnings.push(`⚠️ 법정공휴일 정보를 KASI API 호출 실패로 가져오지 못해, 고정 날짜 계산 방식으로 대체합니다: ${holidayError}`);
+        else warnings.push(`ℹ️ KASI_API_KEY가 설정되지 않아 법정공휴일(대체공휴일 포함)·설날·추석·부처님오신날은 고정 날짜 계산 방식으로 대체됩니다. YEAR_DATA에 정확한 날짜를 직접 추가하거나, KASI_API_KEY를 등록하면 자동으로 정확하게 채워집니다.`);
+
+        FIXED_ITEMS.forEach(f => {
+            if (f.cat !== 'holiday') return; // 근로자의 날은 이미 위에서 추가함
+            const dt = DateTime.fromISO(`${year}-${f.md}`);
+            usedDates.add(dt.toISODate());
+            items.push({ t: f.t, s: dt.toISODate(), cat: f.cat, _dt: dt });
+        });
+        items.forEach(it => {
+            if (!it._dt) return;
+            if (!SUB_HOLIDAY_ELIGIBLE.has(it.t)) return;
+            if (it._dt.weekday !== 6 && it._dt.weekday !== 7) return;
+            const sub = nextFreeWeekday(it._dt.plus({ days: 1 }), usedDates);
+            usedDates.add(sub.toISODate());
+            it.e = sub.toISODate();
+        });
+        items.forEach(it => delete it._dt);
+    }
+
+    // ---- 24절기 ----
+    const { items: kasiTerms, error: termError } = await fetchKasi24Divisions(year);
+    if (kasiTerms) {
+        const termByName = new Map();
+        kasiTerms.forEach(it => {
+            const iso = locdateToISO(it.locdate);
+            if (iso && it.dateName) termByName.set(it.dateName, iso);
+        });
+        TERM_ITEMS.forEach(term => {
+            items.push({ t: term.t, s: termByName.get(term.t) || `${year}-${term.md}`, cat: 'term' });
+        });
+        if (termByName.size === 0) warnings.push(`⚠️ ${year}년 24절기 정보를 KASI API 응답에서 찾지 못해 근사치 날짜를 사용합니다.`);
+    } else {
+        if (termError) warnings.push(`⚠️ 24절기 정보를 KASI API 호출 실패로 가져오지 못해, 근사치 날짜(±1일 오차 가능)를 사용합니다: ${termError}`);
+        TERM_ITEMS.forEach(term => {
+            items.push({ t: term.t, s: `${year}-${term.md}`, cat: 'term' });
+        });
+    }
+
+    // ---- 잡절(한식/초복/중복/말복/단오) ----
+    // 이 5개는 TERM_ITEMS에 근사치로 이미 들어가 있으므로, API가 주는 정확한 날짜로 덮어쓴다.
+    const { items: kasiSundry, error: sundryError } = await fetchKasiSundryDay(year);
+    if (kasiSundry) {
+        const sundryNames = new Set(['한식', '초복', '중복', '말복', '단오']);
+        kasiSundry.forEach(it => {
+            const name = it.dateName;
+            if (!name || !sundryNames.has(name)) return;
+            const iso = locdateToISO(it.locdate);
+            if (!iso) return;
+            const idx = items.findIndex(i => i.cat === 'term' && i.t === name);
+            if (idx >= 0) items[idx].s = iso; // 근사치를 API의 정확한 날짜로 교체
+        });
+    } else if (sundryError) {
+        warnings.push(`⚠️ 한식/초복/중복/말복/단오 정보를 KASI API 호출 실패로 가져오지 못해, 근사치 날짜(±1일 오차 가능)를 사용합니다: ${sundryError}`);
+    }
+
+    return { items, warnings };
+}
+
+async function getYearItems(year) {
+    if (YEAR_DATA[year]) return { items: YEAR_DATA[year], verified: true, warnings: [] };
+    const { items, warnings } = await computeYear(year);
+    return { items, verified: false, warnings };
 }
 
 const extractTitle = (properties) => {
@@ -208,25 +348,118 @@ const extractTitle = (properties) => {
     return properties[key].title.map(t => t.plain_text).join('');
 };
 
-// Contents 관계형 속성이 가리키는 DB에서, 제목이 정확히 일치하는 태그 페이지를 찾는다.
-// (Public은 구매자마다 워크스페이스가 달라 페이지 ID를 고정할 수 없으므로, 제목으로 동적 조회한다.)
-const CONTENTS_HOLIDAY_TAG_TITLE = 'Event & Holiday';
+// "Contents" 관계 속성에 연결할 태그 페이지("Event & Holiday"). 사용자가 제목을
+// 바꿀 수도 있으니 정확히 일치가 아니라 "Holiday" 단어가 포함되면 연결한다.
+// 찾는 방법은 두 단계로 시도한다.
+//   1) Contents 관계 속성이 실제로 가리키는 DB를 직접 조회(databases.query) -
+//      워크스페이스 전체 검색(search)보다 빠르고 확실하다. 이 DB가 위젯의 Notion
+//      통합(Connections)에 공유되어 있지 않으면 여기서 권한 오류가 나는데, 그
+//      사실 자체가 중요한 진단 정보라 diagnostics에 남긴다.
+//   2) 위 방법이 실패하면 워크스페이스 전체 검색으로 한 번 더 시도한다(폴백).
+//      단, 통합에 공유되지 않은 페이지는 검색으로도 찾을 수 없다 - 이 경우
+//      Notion에서 해당 페이지(또는 상위 DB)를 열어 "..." → Connections에서
+//      이 위젯의 통합을 연결해줘야 한다.
+const CONTENTS_HOLIDAY_KEYWORD = 'Holiday';
 
-async function findTagPageIdByTitle(notion, targetDbId, tagTitle) {
-    if (!targetDbId) return null;
-    try {
-        const targetDbInfo = await notion.databases.retrieve({ database_id: targetDbId });
-        const targetTitleProp = Object.keys(targetDbInfo.properties).find(k => targetDbInfo.properties[k].type === 'title');
-        if (!targetTitleProp) return null;
-        const res = await notion.databases.query({
-            database_id: targetDbId,
-            filter: { property: targetTitleProp, title: { equals: tagTitle } },
-            page_size: 1
-        });
-        return res.results[0]?.id || null;
-    } catch (e) {
-        return null;
+async function findHolidayTagId(notion, dbInfo, contentsProp, keyword) {
+    const diagnostics = [];
+    const targetDbId = contentsProp ? dbInfo.properties[contentsProp]?.relation?.database_id : null;
+
+    if (targetDbId) {
+        try {
+            const targetDbInfo = await notion.databases.retrieve({ database_id: targetDbId });
+            const targetTitleProp = Object.keys(targetDbInfo.properties).find(k => targetDbInfo.properties[k].type === 'title');
+            if (targetTitleProp) {
+                const res = await notion.databases.query({
+                    database_id: targetDbId,
+                    filter: { property: targetTitleProp, title: { contains: keyword } },
+                    page_size: 5
+                });
+                if (res.results[0]) return { id: res.results[0].id, diagnostics };
+            }
+            diagnostics.push(`Contents가 가리키는 DB(${targetDbId})에서 "${keyword}" 포함 페이지를 찾지 못함`);
+        } catch (e) {
+            diagnostics.push(`Contents가 가리키는 DB(${targetDbId})에 접근할 수 없음: ${e.message} → 이 DB(또는 상위 페이지)가 위젯의 Notion 통합(Connections)에 공유되어 있는지 확인 필요`);
+        }
+    } else {
+        diagnostics.push(`Contents 속성에서 관계 대상 DB ID를 확인할 수 없음`);
     }
+
+    try {
+        const res = await notion.search({
+            query: keyword,
+            filter: { property: 'object', value: 'page' },
+            page_size: 20
+        });
+        const lower = keyword.toLowerCase();
+        const match = res.results.find(p => {
+            const key = Object.keys(p.properties || {}).find(k => p.properties[k].type === 'title');
+            if (!key) return false;
+            const text = (p.properties[key].title || []).map(t => t.plain_text).join('');
+            return text.toLowerCase().includes(lower);
+        });
+        if (match) return { id: match.id, diagnostics };
+        diagnostics.push(`워크스페이스 검색(위젯 통합에 공유된 페이지만 대상)에서도 "${keyword}" 포함 페이지를 찾지 못함`);
+    } catch (e) {
+        diagnostics.push(`워크스페이스 검색 실패: ${e.message}`);
+    }
+
+    return { id: null, diagnostics };
+}
+
+// dateISO(YYYY-MM-DD) ~ dateEndISO(포함) 사이의 모든 날짜를 나열한다 (여러날짜짜리 연휴 대응).
+function datesInRange(startISO, endISO) {
+    const dates = [];
+    let d = DateTime.fromISO(startISO);
+    const endDt = endISO ? DateTime.fromISO(endISO) : d;
+    while (d <= endDt) {
+        dates.push(d.toISODate());
+        d = d.plus({ days: 1 });
+    }
+    return dates;
+}
+
+// Notion date/formula-date 속성에서 {start, end}(YYYY-MM-DD)를 안전하게 뽑는다. (cron.js와 동일)
+function getSafeDateRange(prop) {
+    if (!prop) return null;
+    if (prop.type === 'date' && prop.date) {
+        return { start: prop.date.start.substring(0, 10), end: (prop.date.end || prop.date.start).substring(0, 10) };
+    }
+    return null;
+}
+
+// Annual/Monthly/Weekly DB를 전부 불러와, 단일 날짜짜리 Schedule은 해당 주기(연/월/주)
+// 전체로 넓혀서 겹치는 페이지를 찾는다. (cron.js의 findOverlappingIds와 동일한 로직 -
+// 검증된 동일 방식을 그대로 재사용한다.)
+async function loadAllPages(notion, dbId) {
+    if (!dbId) return [];
+    let allResults = []; let hasMore = true; let cursor = undefined;
+    while (hasMore) {
+        try {
+            const res = await notion.databases.query({ database_id: dbId, page_size: 100, start_cursor: cursor });
+            allResults = allResults.concat(res.results);
+            hasMore = res.has_more; cursor = res.next_cursor;
+        } catch (e) {
+            hasMore = false;
+        }
+    }
+    return allResults;
+}
+
+function findOverlappingIds(candidates, schedPropName, taskStart, taskEnd, kind) {
+    const matchedIds = [];
+    for (const p of candidates) {
+        const d = getSafeDateRange(p.properties[schedPropName]);
+        if (!d) continue;
+        let pStart = d.start; let pEnd = d.end;
+        if (pStart === pEnd) {
+            if (kind === 'weekly') pEnd = DateTime.fromISO(pStart).plus({ days: 6 }).toISODate();
+            else if (kind === 'monthly') pEnd = DateTime.fromISO(pStart).endOf('month').toISODate();
+            else if (kind === 'annual') pEnd = DateTime.fromISO(pStart).endOf('year').toISODate();
+        }
+        if (taskStart <= pEnd && taskEnd >= pStart) matchedIds.push(p.id);
+    }
+    return matchedIds;
 }
 
 module.exports = async (req, res) => {
@@ -242,7 +475,7 @@ module.exports = async (req, res) => {
       return res.status(400).json({ success: false, error: "연도를 올바르게 지정해주세요." });
   }
 
-  const { NOTION_TOKEN, PERSONAL_MASTER_DB_ID } = Config.ENV;
+  const { NOTION_TOKEN, PERSONAL_MASTER_DB_ID, DAILY_DB_ID, WEEKLY_DB_ID, MONTHLY_DB_ID, ANNUAL_DB_ID } = Config.ENV;
   if (!NOTION_TOKEN || !PERSONAL_MASTER_DB_ID) {
       return res.status(500).json({ success: false, error: "NOTION_TOKEN 또는 PERSONAL_MASTER_DB_ID 가 없습니다." });
   }
@@ -251,35 +484,119 @@ module.exports = async (req, res) => {
   const schedProp = Config.SCHEMA.SCHEDULE.name;
 
   try {
-      const { items, verified } = getYearItems(targetYear);
+      const { items, verified, warnings } = await getYearItems(targetYear);
       const logs = [];
       if (!verified) {
-          logs.push(`⚠️ ${targetYear}년은 확인된 표가 없어 고정 날짜/24절기만 자동 생성했습니다. 설날·추석·부처님오신날(음력)은 정확한 날짜를 알려주시면 추가하겠습니다.`);
+          logs.push(`ℹ️ ${targetYear}년은 확인된 표가 없어 고정 날짜/24절기 + KASI API 조회 결과로 자동 생성했습니다.`);
       }
+      warnings.forEach(w => logs.push(w));
 
       // 제목 속성 이름은 사용자가 "이름"/"Name" 등으로 바꿔뒀을 수 있으니,
       // 이름으로 고정하지 않고 실제 title 타입 속성을 찾아서 사용한다.
       const dbInfo = await notion.databases.retrieve({ database_id: PERSONAL_MASTER_DB_ID });
       const titleProp = Object.keys(dbInfo.properties).find(k => dbInfo.properties[k].type === 'title') || Config.SCHEMA.TITLE.name;
 
-      // Contents 관계형 속성(있다면)이 가리키는 DB에서 "Event & Holiday" 태그 페이지를 찾는다.
-      // 워크스페이스마다 페이지 ID가 다르므로 제목으로 동적으로 찾고, 없으면 태그 연결 없이 계속 진행한다.
-      const contentsProp = Object.keys(dbInfo.properties).find(k =>
-          dbInfo.properties[k].type === 'relation' && k.toLowerCase() === Config.SCHEMA.CONTENTS.name.toLowerCase()
+      const findProp = (schemaName) => Object.keys(dbInfo.properties).find(k =>
+          dbInfo.properties[k].type === 'relation' && k.toLowerCase() === schemaName.toLowerCase()
       );
+      const contentsProp = findProp(Config.SCHEMA.CONTENTS.name);
+      const backupProp = findProp(Config.SCHEMA.BACKUP.name);
+      const yearCheckProp = findProp(Config.SCHEMA.YEAR_CHECK.name);
+      const monthCheckProp = findProp(Config.SCHEMA.MONTH_CHECK.name);
+      const weekCheckProp = findProp(Config.SCHEMA.WEEK_CHECK.name);
+
+      // Contents 관계형 속성(있다면)에, 제목에 "Holiday"가 포함된 태그 페이지를 찾아 연결한다.
+      // 없으면 태그 연결 없이 계속 진행하되, 원인을 구체적으로 로그에 남긴다.
       let holidayTagId = null;
       if (contentsProp) {
-          const contentsTargetDbId = dbInfo.properties[contentsProp].relation?.database_id;
-          holidayTagId = await findTagPageIdByTitle(notion, contentsTargetDbId, CONTENTS_HOLIDAY_TAG_TITLE);
+          const tagResult = await findHolidayTagId(notion, dbInfo, contentsProp, CONTENTS_HOLIDAY_KEYWORD);
+          holidayTagId = tagResult.id;
           if (!holidayTagId) {
-              logs.push(`⚠️ Contents에서 "${CONTENTS_HOLIDAY_TAG_TITLE}" 페이지를 찾지 못해 태그 연결 없이 생성합니다.`);
+              logs.push(`⚠️ Contents 연결용 "${CONTENTS_HOLIDAY_KEYWORD}" 페이지를 찾지 못해 Contents 연결 없이 생성합니다. (${tagResult.diagnostics.join(' / ')})`);
+              logs.push(`💡 Notion에서 "Event & Holiday" 페이지(또는 그 상위 DB)를 열어 "..." → Connections에서 이 위젯의 통합이 연결되어 있는지 확인해보세요.`);
           }
+      } else {
+          logs.push(`ℹ️ "Contents" 관계형 속성을 찾을 수 없어 태그 연결 없이 생성합니다.`);
       }
 
-      // 같은 해에 이미 만들어진 제목은 건너뛴다 (중복 방지). Contents가 비어있는지도 같이 기록.
-      const existingMap = new Map(); // title -> { id, hasContents }
+      // Backup/Year Check/Month Check/Week Check에 쓸 Daily/Weekly/Monthly/Annual DB를
+      // 한 번에 전부 불러온다 (cron.js의 메인 동기화 엔진과 동일한 겹침판정 방식 재사용).
+      const yStart = `${targetYear}-01-01`; const yEnd = `${targetYear}-12-31`;
+      const rangeFilter = (propName) => ({ and: [
+          { property: propName, date: { on_or_after: yStart } },
+          { property: propName, date: { on_or_before: yEnd } }
+      ] });
+      const loadRangedPages = async (dbId, propNameGuess) => {
+          if (!dbId) return [];
+          try {
+              const info = await notion.databases.retrieve({ database_id: dbId });
+              const prop = Object.keys(info.properties).find(k => k.toLowerCase() === propNameGuess.toLowerCase()) || propNameGuess;
+              let allResults = []; let hasMore = true; let cursor = undefined;
+              while (hasMore) {
+                  const res = await notion.databases.query({ database_id: dbId, filter: rangeFilter(prop), start_cursor: cursor, page_size: 100 });
+                  allResults = allResults.concat(res.results);
+                  hasMore = res.has_more; cursor = res.next_cursor;
+              }
+              return { pages: allResults, schedPropName: prop };
+          } catch (e) {
+              logs.push(`⚠️ 참조 DB 조회 실패: ${e.message}`);
+              return { pages: [], schedPropName: propNameGuess };
+          }
+      };
+
+      // Annual DB는 연 1건뿐이라 row 수가 적어 날짜창 없이 전체를 그냥 로드한다 (cron.js와 동일한 이유).
+      const loadAnnualPages = async (dbId, propNameGuess) => {
+          if (!dbId) return { pages: [], schedPropName: propNameGuess };
+          try {
+              const info = await notion.databases.retrieve({ database_id: dbId });
+              const prop = Object.keys(info.properties).find(k => k.toLowerCase() === propNameGuess.toLowerCase()) || propNameGuess;
+              const pages = await loadAllPages(notion, dbId);
+              return { pages, schedPropName: prop };
+          } catch (e) {
+              logs.push(`⚠️ Annual DB 조회 실패: ${e.message}`);
+              return { pages: [], schedPropName: propNameGuess };
+          }
+      };
+
+      const [dailyRes, weeklyRes, monthlyRes, annualRes] = await Promise.all([
+          (backupProp && DAILY_DB_ID) ? loadRangedPages(DAILY_DB_ID, schedProp) : Promise.resolve({ pages: [], schedPropName: schedProp }),
+          (weekCheckProp && WEEKLY_DB_ID) ? loadRangedPages(WEEKLY_DB_ID, schedProp) : Promise.resolve({ pages: [], schedPropName: schedProp }),
+          (monthCheckProp && MONTHLY_DB_ID) ? loadRangedPages(MONTHLY_DB_ID, schedProp) : Promise.resolve({ pages: [], schedPropName: schedProp }),
+          (yearCheckProp && ANNUAL_DB_ID) ? loadAnnualPages(ANNUAL_DB_ID, schedProp) : Promise.resolve({ pages: [], schedPropName: schedProp })
+      ]);
+
+      const dailyMap = new Map();
+      dailyRes.pages.forEach(p => {
+          const d = getSafeDateRange(p.properties[dailyRes.schedPropName]);
+          if (d && d.start) dailyMap.set(d.start, p.id);
+      });
+
+      function resolveLinkIds(it) {
+          const start = it.s; const end = it.e || it.s;
+          const out = {};
+          if (backupProp) {
+              const ids = datesInRange(start, end).map(d => dailyMap.get(d)).filter(Boolean);
+              if (ids.length > 0) out[backupProp] = ids;
+          }
+          if (weekCheckProp) {
+              const ids = findOverlappingIds(weeklyRes.pages, weeklyRes.schedPropName, start, end, 'weekly');
+              if (ids.length > 0) out[weekCheckProp] = ids;
+          }
+          if (monthCheckProp) {
+              const ids = findOverlappingIds(monthlyRes.pages, monthlyRes.schedPropName, start, end, 'monthly');
+              if (ids.length > 0) out[monthCheckProp] = ids;
+          }
+          if (yearCheckProp) {
+              const ids = findOverlappingIds(annualRes.pages, annualRes.schedPropName, start, end, 'annual');
+              if (ids.length > 0) out[yearCheckProp] = ids;
+          }
+          return out;
+      }
+
+      // 같은 해에 이미 만들어진 제목은 건너뛴다 (중복 방지). 각 관계 속성이 비어있는지도 같이 기록.
+      const existingMap = new Map(); // title -> { id, empty: {propName: true/false} }
+      const trackedProps = [contentsProp, backupProp, yearCheckProp, monthCheckProp, weekCheckProp].filter(Boolean);
       {
-          const yStart = `${targetYear}-01-01`; const yEnd = `${targetYear}-12-31`;
           let hasMore = true; let cursor = undefined;
           while (hasMore) {
               const resp = await notion.databases.query({
@@ -290,9 +607,12 @@ module.exports = async (req, res) => {
               resp.results.forEach(p => {
                   const t = extractTitle(p.properties);
                   if (!t) return;
-                  const cp = contentsProp ? p.properties[contentsProp] : null;
-                  const hasContents = !!(cp && cp.relation && cp.relation.length > 0);
-                  existingMap.set(t, { id: p.id, hasContents });
+                  const empty = {};
+                  trackedProps.forEach(propName => {
+                      const pv = p.properties[propName];
+                      empty[propName] = !(pv && pv.relation && pv.relation.length > 0);
+                  });
+                  existingMap.set(t, { id: p.id, empty });
               });
               hasMore = resp.has_more; cursor = resp.next_cursor;
           }
@@ -305,17 +625,24 @@ module.exports = async (req, res) => {
               const existing = existingMap.get(it.t);
               if (existing) {
                   skipped.push(it.t);
-                  // 이미 있는 항목인데 Contents가 비어있으면 태그만 채워준다.
+                  // 이미 있는 항목인데 관계 속성이 비어있으면 그것만 채워준다.
                   // 이미 뭔가 연결돼 있으면(직접 다르게 분류해둔 경우) 건드리지 않는다.
-                  if (contentsProp && holidayTagId && !existing.hasContents) {
+                  const patchProps = {};
+                  if (contentsProp && holidayTagId && existing.empty[contentsProp]) {
+                      patchProps[contentsProp] = { relation: [{ id: holidayTagId }] };
+                  }
+                  const linkIds = resolveLinkIds(it);
+                  [backupProp, yearCheckProp, monthCheckProp, weekCheckProp].filter(Boolean).forEach(propName => {
+                      if (existing.empty[propName] && linkIds[propName]) {
+                          patchProps[propName] = { relation: linkIds[propName].map(id => ({ id })) };
+                      }
+                  });
+                  if (Object.keys(patchProps).length > 0) {
                       try {
-                          await notion.pages.update({
-                              page_id: existing.id,
-                              properties: { [contentsProp]: { relation: [{ id: holidayTagId }] } }
-                          });
+                          await notion.pages.update({ page_id: existing.id, properties: patchProps });
                           patched.push(it.t);
                       } catch (e) {
-                          logs.push(`❌ ${it.t} Contents 보정 실패: ${e.message}`);
+                          logs.push(`❌ ${it.t} 보정 실패: ${e.message}`);
                       }
                   }
                   return;
@@ -330,6 +657,10 @@ module.exports = async (req, res) => {
               if (contentsProp && holidayTagId) {
                   properties[contentsProp] = { relation: [{ id: holidayTagId }] };
               }
+              const linkIds = resolveLinkIds(it);
+              Object.keys(linkIds).forEach(propName => {
+                  properties[propName] = { relation: linkIds[propName].map(id => ({ id })) };
+              });
               try {
                   await notion.pages.create({
                       parent: { database_id: PERSONAL_MASTER_DB_ID },
@@ -344,7 +675,7 @@ module.exports = async (req, res) => {
           await new Promise(r => setTimeout(r, 200));
       }
 
-      logs.push(`생성 ${created.length}개 / 건너뜀(이미 있음) ${skipped.length}개 / Contents 보정 ${patched.length}개`);
+      logs.push(`생성 ${created.length}개 / 건너뜀(이미 있음) ${skipped.length}개 / Contents·Backup·Year·Month·Week Check 보정 ${patched.length}개`);
       res.status(200).json({ success: true, message: `${targetYear}년: 생성 ${created.length} / 스킵 ${skipped.length} / 보정 ${patched.length}`, logs, created, skipped, patched, verified });
   } catch (err) {
       res.status(500).json({ success: false, error: err.message });
