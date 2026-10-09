@@ -29,6 +29,13 @@
 
         .main { flex: 1; padding: 16px; overflow-y: auto; overflow-x: hidden; background: var(--main-bg); border-radius: 16px; border-top-left-radius: 4px; margin: 0 4px 4px 4px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); display: flex; flex-direction: column; position: relative; z-index: 8; }
         .main::-webkit-scrollbar { width: 5px; } .main::-webkit-scrollbar-thumb { background-color: var(--secondary-accent); border-radius: 10px; }
+
+        /* 샘플 화면(?demo=1) 안내: 테마 색과 무관하게 항상 읽히도록 어두운 고정 배경 + 흰 글씨 */
+        .demo-banner { background: #5A4A78; color: #FFFFFF; padding: 12px; border-radius: 10px; margin-bottom: 12px; font-size: 12px; font-weight: 600; text-align: center; line-height: 1.5; flex-shrink: 0; transition: box-shadow 0.3s, transform 0.3s; }
+        .demo-banner.pulse { box-shadow: 0 0 0 3px #F0C36D; transform: scale(1.01); }
+        :root[data-theme="dark"] .demo-banner { background: #6B5B95; }
+        .demo-badge { display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: #5A4A78; color: #FFFFFF; }
+        body.demo .btn:not(.btn-cancel) { opacity: 0.8; }
         
         .section { display: none; animation: fadeIn 0.3s ease-out; flex-shrink: 0; } .section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -285,12 +292,26 @@
         const urlParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
         const secretKey = urlParams.get('key') || hashParams.get('key') || '';
+        // 노션 템플릿에 넣는 샘플용 주소(?demo=1): 서버(/api) 호출 없이 화면과 안내만 보여준다.
+        const isDemo = (urlParams.get('demo') || hashParams.get('demo')) === '1';
 
         let isCancelled = false;
 
         window.onload = function () {
-            // ✨ 비밀번호가 URL에 없으면 경고창 띄우기
-            if (!secretKey) {
+            if (isDemo) {
+                document.body.classList.add('demo');
+                const main = document.querySelector('.main');
+                if (main) {
+                    const banner = document.createElement('div');
+                    banner.id = 'demo-banner'; banner.className = 'demo-banner';
+                    banner.innerHTML = '👀 샘플 화면입니다.<br>서버 연동이 필요한 기능은 <b>내 위젯 주소로 교체</b>하면 사용할 수 있습니다.';
+                    main.insertBefore(banner, main.firstChild);
+                }
+                const logBackup = document.getElementById('logBox-backup');
+                if (logBackup) logBackup.innerText = '[샘플 로그]\n🚀 동기화 시작 (모드: today)\n📂 Personal: 12건 확인 → ✅ 5건 연결\n📂 Finance: 4건 확인 → ✅ 2건 연결\n✅ 동기화 완료';
+            }
+            // ✨ 비밀번호가 URL에 없으면 경고창 띄우기 (샘플 화면에서는 띄우지 않음)
+            if (!secretKey && !isDemo) {
                 const main = document.querySelector('.main');
                 if (main) {
                     const warn = document.createElement('div');
@@ -301,7 +322,12 @@
             }
 
             document.getElementById('currentVersionText').innerText = CURRENT_WIDGET_VERSION;
-            checkLatestVersion();
+            if (isDemo) {
+                const vc = document.getElementById('versionCheckContainer');
+                if (vc) vc.innerHTML = '<span class="demo-badge">👀 샘플 화면</span>';
+            } else {
+                checkLatestVersion();
+            }
 
             const yearSelect = document.getElementById('targetYear');
             const currentYear = new Date().getFullYear();
@@ -473,6 +499,8 @@
         // 흔한 타임아웃 신호(504/502/503, JSON 파싱 실패)를 감지해서 "같은 버튼을
         // 다시 눌러 이어서 진행하라"는 안내로 바꿔준다. 그 외 에러는 그대로 전달한다.
         async function fetchJsonSafe(url) {
+            // 샘플 화면은 서버 호출을 절대 하지 않는다 (모든 /api 호출이 이 함수를 거친다)
+            if (isDemo) throw new Error('샘플 화면에서는 서버 기능을 사용할 수 없습니다. 내 위젯 주소로 교체하면 사용할 수 있어요.');
             let res;
             try {
                 res = await fetch(url);
@@ -957,6 +985,26 @@
                 document.body.removeChild(ta);
             }
             setTimeout(() => { copyBtn.innerText = '📋 결과 복사 (AI에게 물어볼 때)'; }, 2000);
+        }
+
+        // ---- 샘플 화면(?demo=1): 서버가 필요한 실행 버튼은 호출 없이 안내만 보여준다 ----
+        if (isDemo) {
+            const DEMO_MSG = '👀 샘플 화면에서는 실행되지 않습니다. 내 위젯 주소로 교체하면 사용할 수 있어요.';
+            const demoNotice = (resultBoxId) => {
+                updateLogBoxes(DEMO_MSG);
+                if (resultBoxId) {
+                    const el = document.getElementById(resultBoxId);
+                    if (el) { el.style.display = 'block'; el.innerText = DEMO_MSG; }
+                }
+                const banner = document.getElementById('demo-banner');
+                if (banner) { banner.classList.add('pulse'); setTimeout(() => banner.classList.remove('pulse'), 700); }
+            };
+            ['runBackup', 'runRangeBackup', 'runYearMonthGenerator', 'runWeeksGenerator', 'generatePages',
+             'runLinker', 'runWeeksLinker', 'runDailyOnlyGenerator', 'runAllInOneLinker', 'runHolidayGenerate',
+             'runTimelineDay', 'runTimelineDateRange', 'runTimelineMonth', 'runTimelineYear'
+            ].forEach(name => { window[name] = () => demoNotice(); });
+            window.checkAllDBs = () => demoNotice('db-check-results');
+            window.checkSchemas = () => demoNotice('schema-check-results');
         }
     </script>
 </body>
