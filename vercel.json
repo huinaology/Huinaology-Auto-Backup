@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron?mode=today&slot=morning_personal&target_dbs=personal",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=morning_personal_retry&target_dbs=personal",
+      "schedule": "5 22 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=morning_rest&target_dbs=finance,media",
+      "schedule": "10 22 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=morning_rest_retry&target_dbs=finance,media",
+      "schedule": "15 22 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=evening_personal&target_dbs=personal",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=evening_personal_retry&target_dbs=personal",
+      "schedule": "5 10 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=evening_rest&target_dbs=finance,media",
+      "schedule": "10 10 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=evening_rest_retry&target_dbs=finance,media",
+      "schedule": "15 10 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=midnight_personal&target_dbs=personal",
+      "schedule": "3 15 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=midnight_personal_retry&target_dbs=personal",
+      "schedule": "8 15 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=midnight_rest&target_dbs=finance,media",
+      "schedule": "13 15 * * *"
+    },
+    {
+      "path": "/api/cron?mode=today&slot=midnight_rest_retry&target_dbs=finance,media",
+      "schedule": "18 15 * * *"
+    },
+    {
+      "path": "/api/timeline?mode=auto",
+      "schedule": "5 22 * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "s-maxage=0, no-store, no-cache, must-revalidate"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Huinaology Auto-Backup Widget</title>
+    <style>
+        :root {
+            --bg-color: #F7F3FC; --accent-color: #F4C2D7; --accent-hover: #E0B0C5; --secondary-accent: #DCD0FF;
+            --text-main: #6D6373; --text-sub: #A89FAA; --border-color: #EBE0F5; --card-bg: #FFFFFF;
+            --main-bg: #FFF; --success-bg: #E3F6F3; --success-text: #2D8B7E; --fail-bg: #FBE8E8;
+            --fail-text: #C55353; --warn-bg: #FFF3E0; --warn-text: #E65100; --log-bg: #2D2D2D; --log-text: #E0E0E0;
+        }
+
+        [data-theme="dark"] {
+            --text-main: #E0D8E8; --text-sub: #9B93A0; --border-color: #3D3545; --card-bg: #2A2235;
+            --main-bg: #1E1828; --success-bg: #1A332E; --success-text: #5ED4B9; --fail-bg: #3A1E1E;
+            --fail-text: #F28B8B; --warn-bg: #3A2E1A; --warn-text: #FFB74D; --log-bg: #12101A; --log-text: #C8C0D0;
+        }
+
+        * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; transition: background-color 0.4s ease; }
+
+        .top-nav { display: flex; gap: 6px; padding: 12px 16px 0 16px; background: transparent; z-index: 5; position: relative; top: 2px; justify-content: flex-start; }
+        .nav-btn { width: 48px; height: 36px; border-radius: 10px 10px 0 0; border: none; background-color: var(--accent-color); color: rgba(255, 255, 255, 0.8); font-size: 18px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.05); position: relative; top: 0; }
+        .nav-btn:hover { background-color: var(--accent-hover); color: white; top: -2px; }
+        .nav-btn.active { background-color: #FFF; color: var(--accent-color); box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08); z-index: 10; height: 38px; top: -2px; }
+
+        .main { flex: 1; padding: 16px; overflow-y: auto; overflow-x: hidden; background: var(--main-bg); border-radius: 16px; border-top-left-radius: 4px; margin: 0 4px 4px 4px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); display: flex; flex-direction: column; position: relative; z-index: 8; }
+        .main::-webkit-scrollbar { width: 5px; } .main::-webkit-scrollbar-thumb { background-color: var(--secondary-accent); border-radius: 10px; }
+        
+        .section { display: none; animation: fadeIn 0.3s ease-out; flex-shrink: 0; } .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .header-inline { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed var(--border-color); }
+        .header-inline h2 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -0.5px; color: var(--text-main); }
+        
+        .db-checkboxes { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+        .db-checkboxes label { display: flex; align-items: center; gap: 3px; cursor: pointer; color: var(--text-sub); background: var(--bg-color); padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 11px; font-weight: 600; transition: all 0.3s ease; }
+        .db-checkboxes label:hover { border-color: var(--accent-color); background: #FFF; color: var(--accent-color); }
+        .db-icon { width: 15px; height: 15px; vertical-align: middle; }
+        .header-inline select { padding: 4px 8px; font-size: 13px; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-main); background: #FFF; }
+        
+        h3 { font-size: 12px; margin: 0 0 12px 0; color: var(--text-sub); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .card { background: var(--card-bg); padding: 16px; border-radius: 14px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03); border: 1px solid var(--border-color); margin-bottom: 14px; transition: 0.2s; }
+        
+        .theme-toggle { position: fixed; top: 10px; right: 10px; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border-color); background: var(--card-bg); color: var(--text-main); font-size: 16px; cursor: pointer; z-index: 999; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15); transition: all 0.3s; }
+        .theme-toggle:hover { transform: scale(1.15); box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+        
+        .two-column { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 14px; }
+        input[type="checkbox"] { accent-color: var(--accent-color); }
+        .date-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; width: 100%; }
+        input[type="date"] { flex: 1 1 120px; min-width: 0; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 12px; color: var(--text-main); background: #FFFAFA; font-family: inherit; }
+        
+        .btn { width: 100%; padding: 10px 12px; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; margin-bottom: 8px; letter-spacing: -0.3px; word-break: keep-all; white-space: normal; height: auto; line-height: 1.4; }
+        .btn-primary { background-color: var(--accent-color); color: var(--btn-text, white); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+        .btn-primary:hover { background-color: var(--accent-hover); color: var(--btn-text-hover, white); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15); }
+        .btn-secondary { background-color: white; border: 2px solid var(--secondary-accent); color: var(--text-main); }
+        .btn-secondary:hover { background-color: var(--bg-color); border-color: var(--accent-color); color: var(--accent-color); transform: translateY(-1px); }
+        .btn-warn { background-color: var(--warn-bg); border: 1px solid #FFCC80; color: var(--warn-text); }
+        .btn-toggle { background: transparent; color: var(--text-sub); display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 4px; font-size: 12px; border: none; cursor: pointer; font-weight: 600; }
+        .btn-toggle:hover { color: var(--accent-color); }
+        
+        .history-list { margin-top: 10px; border-top: 1px dashed var(--border-color); padding-top: 10px; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 11px; color: var(--text-sub); }
+        .badge { padding: 3px 7px; border-radius: 6px; font-size: 10px; font-weight: 700; }
+        .success { background: var(--success-bg); color: var(--success-text); } .fail { background: var(--fail-bg); color: var(--fail-text); }
+        
+        .log-box { background: var(--log-bg); color: var(--log-text); padding: 14px; border-radius: 12px; font-family: 'D2Coding', 'Menlo', monospace; font-size: 11px; line-height: 1.6; height: 180px; overflow-y: auto; overflow-x: hidden; white-space: pre-wrap; margin-top: 12px; display: none; }
+        .log-box.active { display: block; } .log-box::-webkit-scrollbar { width: 4px; } .log-box::-webkit-scrollbar-thumb { background-color: #555; border-radius: 10px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+        .grid-4 .btn-secondary { padding: 8px; font-size: 11px; margin-bottom: 0; }
+        
+        .btn-cancel { display: none; background: #FFF5F5; border: 1px solid #FC8181; color: #E53E3E; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 10px; width: 100%; text-align: center; transition: 0.2s; }
+        .btn-cancel:hover { background: #FED7D7; transform: translateY(-1px); }
+    </style>
+</head>
+
+<body>
+
+    <div class="top-nav">
+        <button class="nav-btn active" onclick="showTab('backup', event)" title="백업 동기화">🌸</button>
+        <button class="nav-btn" onclick="showTab('generator', event)" title="페이지 자동 생성 및 연결">🎀</button>
+        <button class="nav-btn" onclick="showTab('timeline', event)" title="Daily Timeline 생성">🕐</button>
+        <button class="nav-btn" onclick="showTab('holidays', event)" title="공휴일/기념일/24절기 자동생성">🎌</button>
+        <button class="nav-btn" onclick="showTab('update', event)" title="설정 및 정보">⚙️</button>
+    </div>
+    <button class="theme-toggle" id="darkModeBtn" onclick="toggleDarkMode()" title="라이트/다크 모드 전환">🌙</button>
+
+    <div class="main">
+        <!-- 탭 1: Data Sync -->
+        <div id="tab-backup" class="section active">
+            <div class="header-inline">
+                <h2>Data Sync</h2>
+                <div class="db-checkboxes">
+                    <label><input type="checkbox" id="db-all" checked onchange="toggleAllDBs()"> ALL</label>
+                    <label title="Personal"><input type="checkbox" class="db-check" value="personal" onchange="toggleSingleDB()"> <img src="https://api.iconify.design/lucide/star.svg?color=%23EAB308" class="db-icon"></label>
+                    <label title="Finance"><input type="checkbox" class="db-check" value="finance" onchange="toggleSingleDB()"> <img src="https://api.iconify.design/lucide/circle-dollar-sign.svg?color=%2322C55E" class="db-icon"></label>
+                    <label title="Media"><input type="checkbox" class="db-check" value="media" onchange="toggleSingleDB()"> <img src="https://api.iconify.design/lucide/book.svg?color=%238B5E3C" class="db-icon"></label>
+                    <span style="width:1px; align-self:stretch; background:var(--border-color); margin:0 2px;"></span>
+                    <label title="Timetable (ALL에는 포함되지 않으며, 수동으로 선택했을 때만 연결됩니다. 매일 24시간 타임라인 자체는 자동으로 생성됩니다)"><input type="checkbox" class="db-check-extra" value="timeline"> <img src="https://api.iconify.design/lucide/clock.svg?color=%236B8DD6" class="db-icon"></label>
+                    <label title="Pomodoro (ALL 실행 시 자동으로 함께 연결되며, 수동으로 단독 선택도 가능합니다)"><input type="checkbox" class="db-check-extra" value="pomodoro"> <img src="https://api.iconify.design/lucide/timer.svg?color=%23F43F5E" class="db-icon"></label>
+                </div>
+            </div>
+            <div class="two-column">
+                <div class="card" style="margin-bottom: 0;">
+                    <h3>Quick Action (-3M ~ +2M)</h3>
+                    <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 8px; line-height: 1.4;">매일 오전/오후 7시 2번씩 Today Update가 자동으로 연결됩니다. 필요에 따라 수동으로 연결하세요.</div>
+                    <button class="btn btn-primary" title="오늘 날짜에 해당되는 데이터를 수동으로 연결합니다." onclick="runBackup('today')">Today Update (Auto Mode)</button>
+                    <button class="btn btn-secondary" title="오늘 날짜 기준으로 과거 3개월, 이후 2개월 일정을 확인해 연결합니다" onclick="runBackup('recent')">Recent Resync</button>
+                </div>
+                <div class="card" style="margin-bottom: 0;">
+                    <h3>Range Restore</h3>
+                    <div class="date-container">
+                        <input type="date" id="startDate" title="시작일 지정">
+                        <input type="date" id="endDate" title="종료일 지정">
+                    </div>
+                    <button class="btn btn-secondary" title="입력한 시작일과 종료일 사이의 데이터를 확인 해 연결합니다." onclick="runRangeBackup()">Execute Range Restore</button>
+                    <div style="font-size: 10px; color: var(--warn-text); margin-top: 6px; line-height: 1.3;">⚠️너무 긴 기간을 설정하면 연결 도중 오류가 발생할 수 있으므로, 최대 3개월~6개월 정도의 범위를 지정하는 것을 권장합니다.</div>
+                    <button id="cancel-btn-backup" class="btn-cancel" title="지금까지 처리된 항목은 그대로 두고, 진행 중인 작업만 중단합니다." onclick="cancelProcess()">🛑 진행 강제 중지</button>
+                </div>
+            </div>
+            <div class="card" style="padding: 10px 14px;">
+                <button class="btn-toggle" style="margin-bottom: 0;" onclick="toggleHistory('backup')"><span>Sync History & Logs</span> <span id="icon-backup">▼</span></button>
+                <div id="history-container-backup" class="history-list" style="display: none;"></div>
+                <div class="log-box" id="logBox-backup">대기 중... 작업을 실행하면 여기에 실시간 로그가 표시됩니다.</div>
+            </div>
+        </div>
+
+        <!-- 탭 2: Generator & Linker -->
+        <div id="tab-generator" class="section">
+            <div class="header-inline">
+                <h2>Generator & Linker</h2>
+                <select id="targetYear"></select>
+            </div>
+            <div class="two-column">
+                <div class="card" style="margin-bottom: 0;">
+                    <h3 style="color: var(--accent-hover); margin-top: 0; margin-bottom: 10px;">STEP 1. 페이지 생성</h3>
+                    <label title="켜면 이미 있는 페이지의 커버가 날짜에 맞는 헤더 이미지로 바뀝니다(맞는 이미지가 없으면 그대로). 되돌릴 수 없어요. 끄면 새로 만드는 페이지에만 헤더 이미지가 들어갑니다." style="display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:11px; color:var(--text-sub); cursor:pointer; line-height:1.5;">
+                        <input type="checkbox" id="overwriteCover">
+                        <span><b style="color:var(--warn-text);">기존 페이지 커버 덮어쓰기</b> (2026년 이후만) <span style="opacity:0.6;">ⓘ</span></span>
+                    </label>
+                    <label title="켜면 이미 있는 페이지의 본문을 지우고 Auto_fill 템플릿을 새로 입힙니다(직접 추가한 본문은 사라지고 속성 값은 유지). 끄면 본문이 비어 있는 페이지에만 자동 적용됩니다." style="display:flex; align-items:center; gap:6px; margin-bottom:10px; font-size:11px; color:var(--text-sub); cursor:pointer; line-height:1.5;">
+                        <input type="checkbox" id="overwriteTemplate">
+                        <span><b style="color:var(--warn-text);">본문 비우고 Auto_fill 다시 적용</b> <span style="opacity:0.6;">ⓘ</span></span>
+                    </label>
+                    <div title="Year & Monthly, Weekly 생성·덮어쓰기에서 처리할 DB를 고릅니다. 연간·Daily는 Personal 쪽이라 Finance만 고르면 연간은 건너뜁니다." style="display:flex; align-items:center; flex-wrap:wrap; gap:4px 10px; margin-bottom:10px; font-size:11px; color:var(--text-sub);">
+                        <b style="color:var(--text-main);">Monthly/Weekly 대상</b>
+                        <label style="display:flex; align-items:center; gap:3px; cursor:pointer;"><input type="radio" name="genScope" value="both" checked> 둘 다</label>
+                        <label style="display:flex; align-items:center; gap:3px; cursor:pointer;"><input type="radio" name="genScope" value="personal"> Personal</label>
+                        <label style="display:flex; align-items:center; gap:3px; cursor:pointer;"><input type="radio" name="genScope" value="finance"> Finance</label>
+                        <span style="opacity:0.6;">ⓘ</span>
+                    </div>
+                    <button class="btn btn-primary" title="선택한 연도의 연간(Year) 페이지 1개와 1~12월 Monthly 페이지(재정 Monthly 포함)를 생성합니다. 헤더 이미지와 Auto_fill 본문이 함께 들어가며, 이미 있는 페이지는 건너뜁니다." onclick="runYearMonthGenerator()">1. Year & Monthly 생성</button>
+                    <button class="btn btn-secondary" title="선택한 연도의 주간(Weekly) 페이지를 1년 치(약 52주) 생성합니다. 재정 Weekly도 함께 생성되며, 헤더 이미지와 Auto_fill 본문이 함께 들어가고, 이미 있는 주는 건너뜁니다." onclick="runWeeksGenerator()">2. 1년 치 Weekly 생성</button>
+                    <button class="btn btn-warn" title="선택한 연도의 1~12월 Daily 페이지를 순서대로 생성합니다. 페이지 수가 많아 시간이 오래 걸릴 수 있어요. 요일별 헤더 이미지와 Auto_fill 본문이 함께 들어가고, 이미 있는 날짜는 건너뜁니다." onclick="runDailyOnlyGenerator()" style="margin-bottom: 0;">⚠️ 3. 1년 치 Daily 생성</button>
+                    <div style="margin-top: 10px; border-top: 1px dashed var(--border-color); padding-top: 8px;">
+                        <button class="btn-toggle" style="padding: 0; font-size: 11px; font-weight: 600;" title="특정 달만 다시 생성하고 싶을 때 사용하세요. (예: 중간에 실패한 달만 복구)" onclick="toggleDailyManual()">
+                            <span style="color: var(--text-sub);">※ 월별 수동 생성 (누락 복구용)</span> <span id="icon-daily">▼</span>
+                        </button>
+                        <div class="grid-4" id="daily-btn-container" style="display: none;"></div>
+                    </div>
+                </div>
+                <div class="card" style="margin-bottom: 0;">
+                    <h3 style="color: var(--success-text); margin-top: 0; margin-bottom: 10px;">STEP 2. 뼈대 계층 자동 연결</h3>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" title="생성된 Monthly 페이지들을 상위 Year 페이지에 연결하고, 이전/다음 달(Last/Next Month) 링크도 이어줍니다." onclick="runLinker('year_month')">1. Month ↔ Year 계층 연결</button>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" title="생성된 Weekly 페이지들을 해당 Year·Month 페이지에 연결하고, 이전/다음 주(Last/Next Week) 링크도 이어줍니다." onclick="runWeeksLinker()">2. Week ↔ Year/Month 연결</button>
+                    <button class="btn btn-warn" style="background-color: #26A69A; color: white; border: none; margin-bottom: 0;" title="선택한 연도의 Daily 페이지들을 해당 Month·Week 페이지에 1~12월 순서대로 연결합니다. 페이지 수가 많아 시간이 오래 걸릴 수 있어요." onclick="runAllInOneLinker()">✨ 3. Daily 대량 연결</button>
+                    <div style="margin-top:10px; text-align:center;">
+                        <div id="gen-status" style="font-size:12px; font-weight:600;"></div>
+                        <button id="cancel-btn-gen" class="btn-cancel" title="지금까지 처리된 항목은 그대로 두고, 진행 중인 작업만 중단합니다." onclick="cancelProcess()">🛑 진행 강제 중지</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card" style="padding: 10px 14px;">
+                <button class="btn-toggle" style="margin-bottom: 0;" onclick="toggleHistory('gen')"><span>Generation Logs</span> <span id="icon-gen">▼</span></button>
+                <div id="history-container-gen" class="history-list" style="display: none;"></div>
+                <div class="log-box" id="logBox-gen">대기 중...</div>
+            </div>
+        </div>
+
+        <!-- 탭 3: Daily Timeline -->
+        <div id="tab-timeline" class="section">
+            <div class="header-inline">
+                <h2>Daily Timeline</h2>
+                <select id="tlYear"></select>
+            </div>
+            <div class="two-column">
+                <div class="card" style="margin-bottom: 0;">
+                    <h3>Quick Create</h3>
+                    <button class="btn btn-primary" title="오늘 날짜의 0~23시 타임라인 24칸을 만들고, 오늘의 Daily 페이지와 자동으로 연결합니다. 이미 있는 시간대는 건너뜁니다." onclick="runTimelineDay()">🕐 오늘 24시간 생성</button>
+                    <div class="date-container" style="margin-top:8px;">
+                        <input type="date" id="tlStartDate" title="시작일 지정">
+                        <input type="date" id="tlEndDate" title="종료일 지정 (선택)">
+                    </div>
+                    <button class="btn btn-secondary" title="선택한 날짜(또는 기간)에 대해 하루씩 24시간 타임라인을 생성합니다. 이미 있는 시간대는 건너뜁니다." onclick="runTimelineDateRange()">지정 날짜(범위) 24시간 생성</button>
+                </div>
+                <div class="card" style="margin-bottom: 0;">
+                    <h3>Bulk Create (월별 순차 생성)</h3>
+                    <button class="btn btn-primary" style="background-color: var(--success-text);" title="선택한 연도의 1~12월 전체에 대해 매일 24시간 타임라인을 생성합니다. 페이지 수가 많아 시간이 오래 걸릴 수 있어요." onclick="runTimelineYear()">✨ 1년치 생성 (12개월)</button>
+                    <div id="tl-month-btns" class="grid-4" style="margin-top:6px;"></div>
+                    <div style="margin-top:10px; text-align:center;">
+                        <div id="tl-status" style="font-size:12px; font-weight:600;"></div>
+                        <button id="cancel-btn-tl" class="btn-cancel" title="지금까지 처리된 항목은 그대로 두고, 진행 중인 작업만 중단합니다." onclick="cancelProcess()">🛑 진행 강제 중지</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card" style="padding:10px 14px; margin-top:14px;">
+                <button class="btn-toggle" style="margin-bottom:0;" onclick="toggleHistory('tl')"><span>Timeline Logs</span> <span id="icon-tl">▼</span></button>
+                <div id="history-container-tl" class="history-list" style="display:none;"></div>
+                <div class="log-box" id="logBox-tl">대기 중...</div>
+            </div>
+        </div>
+
+        <!-- 탭: Holiday Generator -->
+        <div id="tab-holidays" class="section">
+            <div class="header-inline">
+                <h2>Holiday Generator</h2>
+                <select id="holidayYear"></select>
+            </div>
+            <div class="card">
+                <h3 style="margin-top: 0;">Personal Master DB에 자동 생성</h3>
+                <p style="font-size: 12px; color: var(--text-sub); line-height: 1.6; margin: 0 0 10px;">
+                    지정한 연도의 <b>법정공휴일</b>(빨간 달력, Holiday 뱃지) · <b>기타기념일</b>(파란 달력, 제헌절/식목일/어버이날/할로윈 등) · <b>24절기+한식</b>(노란 orbit)을
+                    Schedule 날짜와 함께 생성합니다. 이미 같은 제목이 그 해에 있으면 건너뜁니다(중복 생성 안 됨).
+                </p>
+                <button class="btn btn-primary" title="선택한 연도의 법정공휴일·기념일·24절기를 Personal Master DB에 생성합니다. 설날·추석·부처님오신날처럼 음력 기반 날짜는 확인된 연도만 정확하게 생성됩니다." onclick="runHolidayGenerate()">이 연도 자동 생성</button>
+                <div id="holiday-status" style="font-size:12px; font-weight:600; text-align:center; margin-top: 6px;"></div>
+            </div>
+            <div class="card" style="padding: 10px 14px;">
+                <button class="btn-toggle" style="margin-bottom: 0;" onclick="toggleHistory('holiday')"><span>Generation Logs</span> <span id="icon-holiday">▼</span></button>
+                <div id="history-container-holiday" class="history-list" style="display: none;"></div>
+                <div class="log-box" id="logBox-holiday">대기 중...</div>
+            </div>
+        </div>
+
+        <!-- 탭 4: Settings -->
+        <div id="tab-update" class="section">
+            <div class="header-inline"><h2>Settings & Info</h2></div>
+            
+            <div class="card" style="padding: 20px; text-align: center;">
+                <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 4px;">현재 설치된 버전</div>
+                <div style="font-weight: 800; font-size: 20px; margin-bottom: 12px; color: var(--text-main);" id="currentVersionText">v1.0.0</div>
+                
+                <div id="versionCheckContainer" style="margin-bottom: 14px;">
+                    <div style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--success-bg); color: var(--success-text);">
+                        ⏳ 최신 버전 확인 중...
+                    </div>
+                </div>
+
+                <div style="font-size: 11px; color: var(--text-sub); line-height: 1.4;">
+                    문제가 발생하거나 건의사항이 있는 경우,<br>템플릿 구매처로 문의를 남겨주시면 감사합니다.
+                </div>
+            </div>
+
+            <!-- 새로 추가된 DB 연결 테스트 영역 -->
+            <div class="card" style="margin-top: 14px; text-align: left;">
+                <h3 style="margin-top: 0; color: var(--accent-hover);">🔌 DB 연결 상태 확인</h3>
+                <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 10px; line-height: 1.4;">
+                    모든 환경 변수(ID)가 잘 입력되었고 노션과 정상적으로 연결되었는지 테스트합니다.
+                </div>
+                <button class="btn btn-secondary" id="db-check-btn" title="설정한 노션 DB ID들이 실제로 잘 연결되는지 한 번에 점검합니다." onclick="checkAllDBs()">🔍 일괄 연결 테스트 실행</button>
+                <div id="db-check-results" style="margin-top: 10px; font-size: 11px; background: var(--bg-color); padding: 10px; border-radius: 8px; display: none;"></div>
+            </div>
+
+            <!-- 속성명 점검 (읽기 전용) -->
+            <div class="card" style="margin-top: 14px; text-align: left;">
+                <h3 style="margin-top: 0; color: var(--accent-hover);">🧩 속성명 점검</h3>
+                <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 10px; line-height: 1.5;">
+                    위젯은 노션 속성 이름을 <b>대소문자·띄어쓰기까지 똑같이</b> 찾아서 연결합니다. 이전 버전 템플릿을 쓰고 계시다면 이름이 달라 일부 연결이 조용히 건너뛰어질 수 있어요.
+                    이 점검은 읽기만 하며 노션 DB를 수정하지 않습니다. (자세한 정리 방법은 노션 가이드의 '속성명 정리 가이드' 참고)
+                </div>
+                <button class="btn btn-secondary" id="schema-check-btn" title="등록된 DB들의 속성 이름·종류·연결 대상이 위젯이 기대하는 이름과 맞는지 확인합니다." onclick="checkSchemas()">🔎 속성명 점검 실행</button>
+                <div id="schema-check-results" style="margin-top: 10px; font-size: 11px; background: var(--bg-color); padding: 10px; border-radius: 8px; display: none; line-height: 1.5;"></div>
+                <button class="btn btn-secondary" id="schema-copy-btn" style="display: none; margin-top: 8px;" title="점검 결과를 글자로 복사합니다. AI에게 붙여넣어 이름 정리를 도움받을 수 있어요." onclick="copySchemaReport()">📋 결과 복사 (AI에게 물어볼 때)</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CURRENT_WIDGET_VERSION = "v1.0.0";
+
+        // ✨ 노션에서 쿼리 파라미터(?key=)를 해시(#key=)로 변환하거나 잘라먹는 경우를 대비해 두 가지 방식 모두 지원
+        const urlParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+        const secretKey = urlParams.get('key') || hashParams.get('key') || '';
+
+        let isCancelled = false;
+
+        window.onload = function () {
+            // ✨ 비밀번호가 URL에 없으면 경고창 띄우기
+            if (!secretKey) {
+                const main = document.querySelector('.main');
+                if (main) {
+                    const warn = document.createElement('div');
+                    warn.style.cssText = 'background:var(--warn-bg);color:var(--warn-text);padding:12px;border-radius:10px;margin-bottom:12px;font-size:12px;font-weight:600;text-align:center;line-height:1.4;';
+                    warn.innerHTML = '⚠️ 위젯 보안 인증 키(비밀번호)가 누락되었습니다.<br>설치하신 노션 임베드 주소 끝에 <b>?key=설정한비밀번호</b> 를 추가해주세요.';
+                    main.insertBefore(warn, main.firstChild);
+                }
+            }
+
+            document.getElementById('currentVersionText').innerText = CURRENT_WIDGET_VERSION;
+            checkLatestVersion();
+
+            const yearSelect = document.getElementById('targetYear');
+            const currentYear = new Date().getFullYear();
+            for (let y = 2022; y <= 2050; y++) {
+                const opt = document.createElement('option'); 
+                opt.value = y; 
+                if (y === currentYear) {
+                    opt.innerText = y + "년 (올해)";
+                    opt.selected = true;
+                    opt.style.color = "#E53E3E";
+                    opt.style.fontWeight = "900";
+                } else {
+                    opt.innerText = y + "년";
+                }
+                yearSelect.appendChild(opt);
+            }
+            const dailyContainer = document.getElementById('daily-btn-container');
+            if (dailyContainer) {
+                for (let i = 1; i <= 12; i++) {
+                    const btn = document.createElement('button'); btn.className = 'btn btn-secondary'; btn.innerText = `${i}월`;
+                    btn.title = `${i}월 Daily 페이지만 생성합니다. (이미 있는 날짜는 건너뜁니다)`;
+                    btn.onclick = () => generatePages('daily', i); dailyContainer.appendChild(btn);
+                }
+            }
+            const holidayYearSelect = document.getElementById('holidayYear');
+            if (holidayYearSelect) {
+                for (let y = 2022; y <= 2050; y++) {
+                    const opt = document.createElement('option');
+                    opt.value = y;
+                    if (y === currentYear) {
+                        opt.innerText = y + "년 (올해)";
+                        opt.selected = true;
+                        opt.style.color = "#E53E3E";
+                        opt.style.fontWeight = "900";
+                    } else {
+                        opt.innerText = y + "년";
+                    }
+                    holidayYearSelect.appendChild(opt);
+                }
+            }
+            initTimelineTab();
+            updateHistoryUI('backup'); updateHistoryUI('gen'); updateHistoryUI('holiday');
+            if (localStorage.getItem('darkMode') === 'true') { document.documentElement.setAttribute('data-theme', 'dark'); const btn = document.getElementById('darkModeBtn'); if (btn) btn.innerText = '☀️'; }
+            showTab('backup');
+        };
+
+        // 탭별 고유 지정 색상 테마 적용 로직
+        function showTab(id, event) {
+            document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById('tab-' + id);
+            if (target) target.classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            if (event) { event.currentTarget.classList.add('active'); } 
+            else { 
+                const btns = document.querySelectorAll('.nav-btn'); 
+                const tabIds = ['backup', 'generator', 'timeline', 'holidays', 'update'];
+                const idx = tabIds.indexOf(id); 
+                if (idx >= 0 && idx < btns.length) btns[idx].classList.add('active'); 
+            }
+            applyTabTheme(id);
+        }
+
+        function applyTabTheme(id) {
+            const root = document.documentElement;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            let bg, accent, hover, secondary;
+
+            if (id === 'backup') {
+                bg = isDark ? '#23192D' : '#F7F3FC'; accent = '#F4C2D7'; hover = '#E0B0C5'; secondary = isDark ? '#3D2A4F' : '#DCD0FF';
+            } else if (id === 'generator') {
+                bg = isDark ? '#1A2520' : '#F6F9F8'; accent = isDark ? '#6BA897' : '#A7CDC0'; hover = isDark ? '#4A8877' : '#91BBAD'; secondary = isDark ? '#3A5A4A' : '#CDEAE0';
+            } else if (id === 'timeline') {
+                bg = isDark ? '#1A1D28' : '#F5F7FB'; accent = isDark ? '#7B8DC5' : '#A6B4E5'; hover = isDark ? '#5A70B0' : '#8FA0D9'; secondary = isDark ? '#3A4060' : '#CFD8F6';
+            } else if (id === 'holidays') {
+                bg = isDark ? '#2D2818' : '#FEFBF0'; accent = isDark ? '#D4A537' : '#F0C36D'; hover = isDark ? '#B8863A' : '#D9A94D'; secondary = isDark ? '#4A3F20' : '#FBE8B8';
+            } else {
+                bg = isDark ? '#23192D' : '#F7F3FC'; accent = '#F4C2D7'; hover = '#E0B0C5'; secondary = isDark ? '#3D2A4F' : '#DCD0FF';
+            }
+
+            root.style.setProperty('--bg-color', bg);
+            root.style.setProperty('--accent-color', accent);
+            root.style.setProperty('--accent-hover', hover);
+            root.style.setProperty('--secondary-accent', secondary);
+            root.style.setProperty('--border-color', isDark ? '#3D3545' : '#EBE0F5');
+        }
+
+        async function checkLatestVersion() {
+            const container = document.getElementById('versionCheckContainer');
+            if (!container) return;
+            try {
+                const res = await fetch(`https://raw.githubusercontent.com/huinaology/Huinaology-Auto-Backup/main/package.json?t=${Date.now()}`);
+                if (!res.ok) throw new Error("Network response was not ok");
+                const data = await res.json();
+                const latestVersion = data.version ? "v" + data.version : CURRENT_WIDGET_VERSION;
+
+                const cleanCurrent = CURRENT_WIDGET_VERSION.replace(/[^0-9.]/g, '');
+                const cleanLatest = latestVersion.replace(/[^0-9.]/g, '');
+
+                if (cleanCurrent >= cleanLatest) {
+                    container.innerHTML = `
+                        <div style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--success-bg); color: var(--success-text);">
+                            ✅ 최신 버전을 사용 중입니다.
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--warn-bg); color: var(--warn-text); margin-bottom: 8px;">
+                            ⚠️ 새로운 버전(${latestVersion})이 있습니다!
+                        </div>
+                        <div>
+                            <a href="https://github.com/huinaology/Huinaology-Auto-Backup" target="_blank" style="font-size: 11px; font-weight: 700; color: var(--accent-color); text-decoration: none; border: 1px solid var(--accent-color); padding: 4px 10px; border-radius: 6px; display: inline-block;">
+                                🔗 깃허브에서 최신 소스 확인하기
+                            </a>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                container.innerHTML = `
+                    <div style="display: inline-block; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; background: var(--success-bg); color: var(--success-text);">
+                        ✅ 최신 버전을 사용 중입니다.
+                    </div>
+                `;
+            }
+        }
+
+        function toggleDarkMode() {
+            const root = document.documentElement;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            const btn = document.getElementById('darkModeBtn');
+            if (isDark) { root.removeAttribute('data-theme'); if (btn) btn.innerText = '🌙'; localStorage.setItem('darkMode', 'false'); } 
+            else { root.setAttribute('data-theme', 'dark'); if (btn) btn.innerText = '☀️'; localStorage.setItem('darkMode', 'true'); }
+            const activeSec = document.querySelector('.section.active');
+            if (activeSec) applyTabTheme(activeSec.id.replace('tab-', ''));
+        }
+
+        function toggleAllDBs() { const allBtn = document.getElementById('db-all'); if (allBtn.checked) { document.querySelectorAll('.db-check').forEach(cb => cb.checked = false); } else { allBtn.checked = true; } }
+        function toggleSingleDB() { const allBtn = document.getElementById('db-all'); const singles = document.querySelectorAll('.db-check'); const checkedCount = Array.from(singles).filter(cb => cb.checked).length; if (checkedCount === 3 || checkedCount === 0) { allBtn.checked = true; singles.forEach(cb => cb.checked = false); } else { allBtn.checked = false; } }
+
+        function toggleDailyManual() { const container = document.getElementById('daily-btn-container'); const icon = document.getElementById('icon-daily'); if (container.style.display === 'none') { container.style.display = 'grid'; icon.innerText = '▲'; } else { container.style.display = 'none'; icon.innerText = '▼'; } }
+        function toggleHistory(id) { const historyEl = document.getElementById(`history-container-${id}`); const logEl = document.getElementById(`logBox-${id}`); const iconEl = document.getElementById(`icon-${id}`); if (historyEl.style.display === 'none') { historyEl.style.display = 'block'; logEl.classList.add('active'); iconEl.innerText = '▲'; } else { historyEl.style.display = 'none'; logEl.classList.remove('active'); iconEl.innerText = '▼'; } }
+        function cancelProcess() { isCancelled = true; document.querySelectorAll('.btn-cancel').forEach(btn => { btn.innerText = "⏳ 중지 처리 중..."; btn.style.opacity = "0.6"; }); }
+        function toggleCancelBtn(show) { document.querySelectorAll('.btn-cancel').forEach(btn => { if (show) { btn.style.display = 'inline-block'; btn.innerText = "🛑 진행 강제 중지"; btn.style.opacity = "1"; } else { btn.style.display = 'none'; } }); }
+
+        function getTargetDBs() {
+            const base = document.getElementById('db-all').checked ? ['all'] : Array.from(document.querySelectorAll('.db-check:checked')).map(cb => cb.value);
+            const parts = base.length > 0 ? [...base] : ['all'];
+            // Timetable/Pomodoro는 ALL/Personal/Finance/Media와 별개로 체크된 만큼 그대로 덧붙인다.
+            Array.from(document.querySelectorAll('.db-check-extra:checked')).forEach(cb => parts.push(cb.value));
+            return parts.join(',');
+        }
+
+        function updateHistoryUI(type) {
+            const history = JSON.parse(localStorage.getItem(`notionHistory_${type}`) || '[]');
+            const container = document.getElementById(`history-container-${type}`);
+            if (!container) return;
+            if (history.length === 0) { container.innerHTML = '<div style="padding:5px; text-align:center; font-size:11px;">기록 없음</div>'; return; }
+            container.innerHTML = history.map(h => `<div class="history-item"><span>${h.date} ${h.time} [${h.mode}]</span><span class="badge ${h.success ? 'success' : 'fail'}">${h.success ? 'OK' : 'ERR'}</span></div>`).join('');
+        }
+        function saveHistory(type, mode, success) {
+            const history = JSON.parse(localStorage.getItem(`notionHistory_${type}`) || '[]'); const now = new Date();
+            const dateStr = now.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }); const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            history.unshift({ date: dateStr, time: timeStr, mode: mode, success: success }); if (history.length > 5) history.pop();
+            localStorage.setItem(`notionHistory_${type}`, JSON.stringify(history)); updateHistoryUI(type);
+        }
+        function updateLogBoxes(text, isAppend = false) { document.querySelectorAll('.log-box').forEach(box => { if (isAppend) box.innerText += text; else box.innerText = text; }); }
+
+        // 처리 시간이 오래 걸리는 요청(1년치 생성/연결 등)이 Vercel 함수 제한(60초)에
+        // 걸리면, 브라우저에는 애매한 네트워크 에러나 JSON이 아닌 응답으로만 보인다.
+        // 흔한 타임아웃 신호(504/502/503, JSON 파싱 실패)를 감지해서 "같은 버튼을
+        // 다시 눌러 이어서 진행하라"는 안내로 바꿔준다. 그 외 에러는 그대로 전달한다.
+        async function fetchJsonSafe(url) {
+            let res;
+            try {
+                res = await fetch(url);
+            } catch (e) {
+                throw new Error(`네트워크 요청이 중단됐습니다. 처리 시간이 길어지면서 타임아웃됐을 수 있어요 — 같은 버튼을 다시 눌러 이어서 진행해보세요. (${e.message})`);
+            }
+            if (res.status === 504 || res.status === 502 || res.status === 503) {
+                throw new Error(`⏱️ 처리 시간이 너무 길어 서버에서 중단됐습니다 (타임아웃). 지금까지 처리된 부분은 남아있으니, 같은 버튼을 다시 눌러 이어서 진행해주세요.`);
+            }
+            try {
+                return await res.json();
+            } catch (e) {
+                throw new Error(`⏱️ 응답을 읽지 못했습니다. 처리 시간이 길어 중간에 끊겼을 가능성이 높습니다 (타임아웃) — 같은 버튼을 다시 눌러 이어서 진행해주세요.`);
+            }
+        }
+
+        async function runBackup(mode) {
+            isCancelled = false; toggleCancelBtn(true);
+            document.getElementById('history-container-backup').style.display = 'block'; document.getElementById('logBox-backup').classList.add('active'); document.getElementById('icon-backup').innerText = '▲';
+            updateLogBoxes(`🚀 [${mode}] 동기화 시작...\n\n`);
+            try {
+                const data = await fetchJsonSafe(`/api/cron?mode=${mode}&target_dbs=${getTargetDBs()}&key=${secretKey}`);
+                if (data.success) {
+                    updateLogBoxes((data.logs || []).join('\n') + '\n\n✨ 완료!', true);
+                    saveHistory('backup', mode, true);
+                } else {
+                    updateLogBoxes(`❌ 에러: ${data.error}`, true);
+                    saveHistory('backup', mode, false);
+                }
+            } catch (e) { updateLogBoxes(`❌ ${e.message}`, true); saveHistory('backup', mode, false); }
+            toggleCancelBtn(false);
+        }
+
+        async function runRangeBackup() {
+            const s = document.getElementById('startDate').value;
+            const e = document.getElementById('endDate').value;
+            if (!s || !e) return alert("시작일과 종료일을 입력하세요.");
+            isCancelled = false; toggleCancelBtn(true);
+            document.getElementById('history-container-backup').style.display = 'block'; document.getElementById('logBox-backup').classList.add('active'); document.getElementById('icon-backup').innerText = '▲';
+            try {
+                const data = await fetchJsonSafe(`/api/cron?mode=range&start_date=${s}&end_date=${e}&target_dbs=${getTargetDBs()}&key=${secretKey}`);
+                if (data.success) {
+                    updateLogBoxes((data.logs || []).join('\n') + '\n✨ 구간 백업 완료!', true);
+                    saveHistory('backup', 'Range Restore', true);
+                } else {
+                    updateLogBoxes(`❌ 에러: ${data.error}`, true);
+                    saveHistory('backup', 'Range Restore', false);
+                }
+            } catch (err) { updateLogBoxes(`❌ ${err.message}`, true); saveHistory('backup', 'Range Restore', false); }
+            toggleCancelBtn(false);
+        }
+
+        // '커버 덮어쓰기' / '본문 비우고 Auto_fill 다시 적용' 체크박스가 켜져 있으면 확인창을 띄우고 요청 파라미터를 돌려준다. 취소하면 null.
+        // 노션 임베드(sandbox)에서는 브라우저 기본 confirm/alert 가 무시될 수 있어, 화면 안에 직접 그리는 확인창을 쓴다.
+        function askConfirm(message, okLabel = "진행", cancelLabel = "취소") {
+            return new Promise((resolve) => {
+                const wrap = document.createElement("div");
+                wrap.style.cssText = "position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10000; display:flex; align-items:center; justify-content:center; padding:16px;";
+                const box = document.createElement("div");
+                box.style.cssText = "background:var(--card-bg); color:var(--text-main); border:1px solid var(--border-color); border-radius:12px; padding:16px; max-width:380px; width:100%; box-shadow:0 8px 24px rgba(0,0,0,0.3); font-size:12px; line-height:1.65;";
+                const msg = document.createElement("div"); msg.style.cssText = "white-space:pre-wrap; margin-bottom:14px;"; msg.textContent = message;
+                const row = document.createElement("div"); row.style.cssText = "display:flex; gap:8px; justify-content:flex-end;";
+                const done = (v) => { document.removeEventListener("keydown", onKey); wrap.remove(); resolve(v); };
+                const onKey = (e) => { if (e.key === "Escape") done(false); };
+                const cancel = document.createElement("button"); cancel.className = "btn btn-secondary"; cancel.style.cssText = "width:auto; margin:0; padding:8px 14px;"; cancel.textContent = cancelLabel; cancel.onclick = () => done(false);
+                const ok = document.createElement("button"); ok.className = "btn btn-primary"; ok.style.cssText = "width:auto; margin:0; padding:8px 14px;"; ok.textContent = okLabel; ok.onclick = () => done(true);
+                row.append(cancel, ok); box.append(msg, row); wrap.append(box); wrap.onclick = (e) => { if (e.target === wrap) done(false); };
+                document.addEventListener("keydown", onKey); document.body.appendChild(wrap); cancel.focus();
+            });
+        }
+        // Monthly/Weekly 처리 대상(둘 다 / Personal / Finance)
+        function genScope() { const r = document.querySelector('input[name="genScope"]:checked'); return r ? r.value : 'both'; }
+        function genScopeParam() { const s = genScope(); return s === 'both' ? '' : `&scope=${s}`; }
+        function genScopeLabel() { return { both: 'Personal + Finance', personal: 'Personal만', finance: 'Finance만' }[genScope()]; }
+        async function generatorOptionsParam(actionLabel, scoped = false) {
+            const cover = document.getElementById('overwriteCover').checked;
+            const erase = document.getElementById('overwriteTemplate').checked;
+            if (!cover && !erase) return '';
+            const year = document.getElementById('targetYear').value;
+            const lines = [];
+            if (cover) lines.push('• 기존 페이지의 커버가 날짜에 맞는 헤더 이미지로 바뀝니다. (2026년 이후만)');
+            if (erase) lines.push('• 기존 페이지의 본문이 모두 지워지고 Auto_fill 템플릿이 새로 적용됩니다. 직접 추가한 본문(별첨 이미지 등)은 사라지고 속성 값은 유지됩니다.');
+            if (scoped) lines.push(`• 대상 DB: ${genScopeLabel()}`);
+            if (!(await askConfirm(`⚠️ ${year}년 기존 페이지를 덮어씁니다.\n${lines.join('\n')}\n되돌릴 수 없습니다.\n\n${actionLabel}을(를) 진행할까요?`))) return null;
+            return (cover ? '&overwriteCover=1' : '') + (erase ? '&overwriteTemplate=1' : '');
+        }
+
+        // 한 번에 오래 걸리지 않도록 월별 등으로 나눠 순서대로 요청한다.
+        // steps: [{ label, url }] — url 에는 type/year/month 등이 들어 있고, 키와 캐시 방지 값은 여기서 붙인다.
+        async function runGenSteps(title, historyName, steps) {
+            isCancelled = false; const statusDiv = document.getElementById('gen-status');
+            document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
+            statusDiv.innerText = "⏳ 생성 중..."; statusDiv.style.color = "var(--warn-text)"; updateLogBoxes(`🚀 [${title}] 시작...\n\n`); toggleCancelBtn(true);
+            let allSuccess = true; let anyPartial = false;
+            for (let i = 0; i < steps.length; i++) {
+                if (isCancelled) { allSuccess = false; break; }
+                statusDiv.innerText = `⏳ 생성 중... (${i + 1}/${steps.length})`;
+                updateLogBoxes(`\n▶️ [${i + 1}/${steps.length}] ${steps[i].label} 처리 중...`, true);
+                try {
+                    const data = await fetchJsonSafe(`${steps[i].url}&t=${Date.now()}&key=${secretKey}`);
+                    if (data.success) { if (data.partial) anyPartial = true; updateLogBoxes(` ➡️ ${data.partial ? '⏱️' : '✅'} ${data.message || '완료!'}`, true); }
+                    else { updateLogBoxes(` ➡️ ❌ 에러: ${data.error}`, true); allSuccess = false; break; }
+                } catch (err) { updateLogBoxes(` ➡️ ❌ ${err.message}`, true); allSuccess = false; break; }
+                await new Promise(r => setTimeout(r, 800));
+            }
+            toggleCancelBtn(false);
+            if (allSuccess) { updateLogBoxes(`\n\n${anyPartial ? '⚠️ [일부 미처리] 위 ⏱️ 항목은 같은 버튼을 다시 눌러 이어서 처리하세요.' : '🎉 [성공] 완료!'}`, true); statusDiv.innerText = anyPartial ? "⚠️ 일부 미처리" : "✅ 완료!"; statusDiv.style.color = anyPartial ? "var(--warn-text)" : "var(--success-text)"; saveHistory('gen', historyName, !anyPartial); }
+            else if (isCancelled) { statusDiv.innerText = "🛑 중지됨"; statusDiv.style.color = "var(--warn-text)"; }
+            else { statusDiv.innerText = "❌ 중단 (로그 확인)"; statusDiv.style.color = "var(--fail-text)"; saveHistory('gen', historyName, false); }
+        }
+        // Year & Monthly: 연간 1건 + 월별(Personal+Finance)로 13번에 나눠 요청한다. (25건을 한 번에 처리하면 60초 제한에 걸릴 수 있음)
+        async function runYearMonthGenerator() {
+            const year = document.getElementById('targetYear').value;
+            const ow = await generatorOptionsParam(`${year}년 연간·월간(Year & Monthly) 생성`, true); if (ow === null) return;
+            const sp = genScopeParam(); const sl = genScopeLabel();
+            const steps = [];
+            if (genScope() !== 'finance') steps.push({ label: '연간', url: `/api/generate?type=year_month&year=${year}&part=annual&month=0${ow}${sp}` });
+            for (let m = 1; m <= 12; m++) steps.push({ label: `${m}월 (${sl})`, url: `/api/generate?type=year_month&year=${year}&part=0&month=${m}${ow}${sp}` });
+            runGenSteps('Year & Monthly Create', 'Create-YearMonthly', steps);
+        }
+        // Weekly도 같은 이유로 월별로 나눠 요청한다.
+        async function runWeeksGenerator() {
+            const year = document.getElementById('targetYear').value;
+            const ow = await generatorOptionsParam(`${year}년 주간(Weekly) 생성`, true); if (ow === null) return;
+            const sp = genScopeParam(); const sl = genScopeLabel();
+            const steps = [];
+            for (let m = 1; m <= 12; m++) steps.push({ label: `${m}월 (${sl})`, url: `/api/generate?type=weeks&year=${year}&part=0&month=${m}${ow}${sp}` });
+            runGenSteps('Weekly Create', 'Create-Weekly', steps);
+        }
+
+        async function generatePages(type, month) {
+            const y = document.getElementById('targetYear').value;
+            const m = (month !== undefined && month !== null) ? month : '';
+            const ow = await generatorOptionsParam(`${y}년 ${type} 생성`); if (ow === null) return;
+            document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
+            const logEl = document.getElementById('logBox-gen');
+            const statusDiv = document.getElementById('gen-status');
+            statusDiv.innerText = '⏳ 처리 중...'; statusDiv.style.color = 'var(--text-main)';
+            logEl.innerText = `⏳ 생성 요청 중... (몇 초 걸릴 수 있습니다)`;
+            try {
+                const data = await fetchJsonSafe(`/api/generate?type=${type}&year=${y}&month=${m}${ow}&key=${secretKey}`);
+                if (data.success) {
+                    logEl.innerText = (data.logs || []).join('\n') + (data.logs ? '\n' : '') + (data.message || '');
+                    statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)';
+                    saveHistory('gen', `gen-${type}`, true);
+                } else {
+                    logEl.innerText = `❌ 에러: ${data.error || '알 수 없는 오류'}`;
+                    statusDiv.innerText = '❌ 실패 (로그 확인)'; statusDiv.style.color = 'var(--fail-text)';
+                    saveHistory('gen', `gen-${type}`, false);
+                }
+            } catch (e) {
+                logEl.innerText = `❌ ${e.message}`;
+                statusDiv.innerText = '❌ 실패'; statusDiv.style.color = 'var(--fail-text)';
+                saveHistory('gen', `gen-${type}`, false);
+            }
+        }
+
+        async function runLinker(target, month) {
+            const y = document.getElementById('targetYear').value;
+            const m = (month !== undefined && month !== null) ? month : '';
+            document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
+            const logEl = document.getElementById('logBox-gen');
+            const statusDiv = document.getElementById('gen-status');
+            statusDiv.innerText = '⏳ 처리 중...'; statusDiv.style.color = 'var(--text-main)';
+            logEl.innerText = `⏳ 연결 요청 중... (몇 초 걸릴 수 있습니다)`;
+            try {
+                const data = await fetchJsonSafe(`/api/generate?type=link&target=${target}&year=${y}&month=${m}&key=${secretKey}`);
+                if (data.success) {
+                    logEl.innerText = (data.logs || []).join('\n') + (data.logs ? '\n' : '') + (data.message || '');
+                    statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)';
+                    saveHistory('gen', `link-${target}`, true);
+                } else {
+                    logEl.innerText = (data.logs || []).join('\n') + `\n❌ 에러: ${data.error || '알 수 없는 오류'}`;
+                    statusDiv.innerText = '❌ 실패 (로그 확인)'; statusDiv.style.color = 'var(--fail-text)';
+                    saveHistory('gen', `link-${target}`, false);
+                }
+            } catch (e) {
+                logEl.innerText = `❌ ${e.message}`;
+                statusDiv.innerText = '❌ 실패'; statusDiv.style.color = 'var(--fail-text)';
+                saveHistory('gen', `link-${target}`, false);
+            }
+        }
+
+        async function runWeeksLinker() { runLinker('weeks'); }
+
+        // Daily 생성/연결은 API가 한 번에 한 달치만 처리하므로 1~12월을 순서대로 돌며 처리한다.
+        async function runDailyOnlyGenerator() {
+            const y = document.getElementById('targetYear').value;
+            const ow = await generatorOptionsParam(`${y}년 Daily 생성`); if (ow === null) return;
+            isCancelled = false; toggleCancelBtn(true);
+            document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
+            const logEl = document.getElementById('logBox-gen');
+            const statusDiv = document.getElementById('gen-status');
+            statusDiv.innerText = `⏳ 생성 중... (0/12)`; statusDiv.style.color = 'var(--text-main)';
+            logEl.innerText = `📅 ${y}년 1~12월 Daily 생성 시작...\n`;
+            let allOk = true;
+            for (let m = 1; m <= 12; m++) {
+                if (isCancelled) { logEl.innerText += `\n🛑 중지됨.`; allOk = false; break; }
+                statusDiv.innerText = `⏳ 생성 중... (${m}/12)`;
+                logEl.innerText += `\n▶️ [${m}/12] ${m}월 생성 중...`;
+                try {
+                    const data = await fetchJsonSafe(`/api/generate?type=daily&year=${y}&month=${m}${ow}&key=${secretKey}`);
+                    logEl.innerText += ` ${data.message || data.error || ''}`;
+                    if (!data.success) allOk = false;
+                } catch (e) { logEl.innerText += `\n   ❌ ${e.message}`; allOk = false; }
+                if (m < 12 && !isCancelled) await new Promise(r => setTimeout(r, 800));
+            }
+            toggleCancelBtn(false);
+            if (isCancelled) {
+                statusDiv.innerText = '🛑 중지됨'; statusDiv.style.color = 'var(--warn-text)';
+            } else if (allOk) {
+                logEl.innerText += `\n\n🎉 완료!`;
+                statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)';
+            } else {
+                logEl.innerText += `\n\n⚠️ 일부 실패했습니다. 위 로그를 확인해주세요.`;
+                statusDiv.innerText = '⚠️ 일부 실패 (로그 확인)'; statusDiv.style.color = 'var(--fail-text)';
+            }
+            saveHistory('gen', 'gen-daily-year', allOk);
+        }
+
+        async function runAllInOneLinker() {
+            const y = document.getElementById('targetYear').value;
+            isCancelled = false; toggleCancelBtn(true);
+            document.getElementById('history-container-gen').style.display = 'block'; document.getElementById('logBox-gen').classList.add('active'); document.getElementById('icon-gen').innerText = '▲';
+            const logEl = document.getElementById('logBox-gen');
+            const statusDiv = document.getElementById('gen-status');
+            statusDiv.innerText = `⏳ 연결 중... (0/12)`; statusDiv.style.color = 'var(--text-main)';
+            logEl.innerText = `🔗 ${y}년 1~12월 Daily 연결 시작...\n`;
+            let allOk = true;
+            for (let m = 1; m <= 12; m++) {
+                if (isCancelled) { logEl.innerText += `\n🛑 중지됨.`; allOk = false; break; }
+                statusDiv.innerText = `⏳ 연결 중... (${m}/12)`;
+                logEl.innerText += `\n▶️ [${m}/12] ${m}월 연결 중...`;
+                try {
+                    const data = await fetchJsonSafe(`/api/generate?type=link&target=daily&year=${y}&month=${m}&key=${secretKey}`);
+                    logEl.innerText += ` ${data.message || data.error || ''}`;
+                    const warnings = (data.logs || []).filter(l => l.includes('⚠️'));
+                    if (warnings.length > 0) logEl.innerText += `\n   ${warnings.join('\n   ')}`;
+                    if (!data.success) allOk = false;
+                } catch (e) { logEl.innerText += `\n   ❌ ${e.message}`; allOk = false; }
+                if (m < 12 && !isCancelled) await new Promise(r => setTimeout(r, 800));
+            }
+            toggleCancelBtn(false);
+            if (isCancelled) {
+                statusDiv.innerText = '🛑 중지됨'; statusDiv.style.color = 'var(--warn-text)';
+            } else if (allOk) {
+                logEl.innerText += `\n\n🎉 완료!`;
+                statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)';
+            } else {
+                logEl.innerText += `\n\n⚠️ 일부 실패했습니다. 위 로그를 확인해주세요.`;
+                statusDiv.innerText = '⚠️ 일부 실패 (로그 확인)'; statusDiv.style.color = 'var(--fail-text)';
+            }
+            saveHistory('gen', 'link-daily-year', allOk);
+        }
+
+        async function runHolidayGenerate() {
+            const year = document.getElementById('holidayYear').value;
+            const statusDiv = document.getElementById('holiday-status');
+            document.getElementById('history-container-holiday').style.display = 'block';
+            document.getElementById('logBox-holiday').classList.add('active');
+            document.getElementById('icon-holiday').innerText = '▲';
+            statusDiv.innerText = `⏳ ${year}년 생성 중...`; statusDiv.style.color = "var(--text-main)";
+            const logBox = document.getElementById('logBox-holiday');
+            logBox.innerText = `🚀 ${year}년 공휴일/기념일/24절기 생성 요청 중...\n(중복 확인 포함이라 몇 초 걸릴 수 있습니다)\n\n`;
+            try {
+                const data = await fetchJsonSafe(`/api/holidays?year=${year}&key=${secretKey}`);
+                if (data.success) {
+                    logBox.innerText += (data.logs || []).join('\n') + `\n\n✅ ${data.message}`;
+                    statusDiv.innerText = "✅ 완료!"; statusDiv.style.color = "var(--success-text)";
+                    saveHistory('holiday', `${year}년 생성`, true);
+                } else {
+                    logBox.innerText += `\n❌ 에러: ${data.error}`;
+                    statusDiv.innerText = "❌ 실패 (로그 확인)"; statusDiv.style.color = "var(--fail-text)";
+                    saveHistory('holiday', `${year}년 생성`, false);
+                }
+            } catch (err) {
+                logBox.innerText += `\n❌ ${err.message}`;
+                statusDiv.innerText = "❌ 실패"; statusDiv.style.color = "var(--fail-text)";
+                saveHistory('holiday', `${year}년 생성`, false);
+            }
+        }
+
+        function initTimelineTab() {
+            const sel = document.getElementById('tlYear'); const cy = new Date().getFullYear();
+            for (let y = 2022; y <= 2050; y++) { 
+                const o = document.createElement('option'); 
+                o.value = y; 
+                if (y === cy) {
+                    o.innerText = y + '년 (올해)';
+                    o.selected = true;
+                    o.style.color = '#E53E3E';
+                    o.style.fontWeight = '900';
+                } else {
+                    o.innerText = y + '년';
+                }
+                sel.appendChild(o); 
+            }
+            const mc = document.getElementById('tl-month-btns');
+            if (mc) {
+                for (let i = 1; i <= 12; i++) {
+                    const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.innerText = `${i}월`;
+                    b.title = `${i}월 전체 날짜에 대해 24시간 타임라인을 생성합니다.`;
+                    b.onclick = () => runTimelineMonth(i); mc.appendChild(b);
+                }
+            }
+            updateHistoryUI('tl');
+        }
+
+        function tlLog(text, append = false) { const box = document.getElementById('logBox-tl'); if (append) box.innerText += text; else box.innerText = text; }
+        function showTlLogs() { document.getElementById('history-container-tl').style.display = 'block'; document.getElementById('logBox-tl').classList.add('active'); document.getElementById('icon-tl').innerText = '▲'; }
+
+        async function runTimelineDay(dateOverride) {
+            const getKSTDate = () => { const now = new Date(); const kstTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); return kstTime.toISOString().split('T')[0]; };
+            const date = dateOverride || getKSTDate(); showTlLogs(); tlLog(`🕐 [Timeline] ${date} 생성 요청 중...\n`);
+            try {
+                const cb = `&t=${Date.now()}&key=${secretKey}`; const data = await fetchJsonSafe(`/api/timeline?mode=day&date=${date}${cb}`);
+                if (data.success) { tlLog(`\n✅ ${data.message}`, true); saveHistory('tl', date, true); } else { tlLog(`\n❌ ${data.message || data.error}`, true); saveHistory('tl', date, false); }
+            } catch (err) { tlLog(`\n❌ ${err.message}`, true); saveHistory('tl', date, false); }
+        }
+
+        async function runTimelineDateRange() {
+            const start = document.getElementById('tlStartDate').value; const end = document.getElementById('tlEndDate').value;
+            if (!start) return alert('시작 날짜를 선택해주세요.');
+            const startDate = new Date(start); const endDate = end ? new Date(end) : startDate;
+            isCancelled = false; showTlLogs(); toggleCancelBtn(true); tlLog(`🕐 [Timeline] ${start} ~ ${end || start} 생성 시작...\n`);
+            let current = new Date(startDate); let allOk = true;
+            while (current <= endDate) {
+                if (isCancelled) { tlLog(`\n🛑 중지됨.`, true); allOk = false; break; }
+                const yyyy = current.getFullYear(); const mm = String(current.getMonth() + 1).padStart(2, '0'); const dd = String(current.getDate()).padStart(2, '0'); const dateStr = `${yyyy}-${mm}-${dd}`;
+                try {
+                    const cb = `&t=${Date.now()}&key=${secretKey}`; const data = await fetchJsonSafe(`/api/timeline?mode=day&date=${dateStr}${cb}`);
+                    if (data.success) { tlLog(`\n  ➡️ [${dateStr}] ${data.message}`, true); } else { tlLog(`\n  ➡️ ❌ [${dateStr}] 에러`, true); allOk = false; break; }
+                } catch (err) { tlLog(`\n  ➡️ ❌ [${dateStr}] ${err.message}`, true); allOk = false; break; }
+                current.setDate(current.getDate() + 1); if (current <= endDate) await new Promise(r => setTimeout(r, 600));
+            }
+            toggleCancelBtn(false); if (allOk) tlLog(`\n\n🎉 완료!`, true);
+        }
+
+        async function runTimelineMonth(m, silent) {
+            const y = parseInt(document.getElementById('tlYear').value); const label = `${y}년 ${m}월`;
+            if (!silent) { showTlLogs(); tlLog(`🕐 [Timeline] ${label} 생성 시작...\n`); toggleCancelBtn(true); isCancelled = false; } else { tlLog(`\n▶️ [${m}/12] ${label} 생성 중...`, true); }
+            const daysInMonth = new Date(y, m, 0).getDate(); let allOk = true;
+            for (let d = 1; d <= daysInMonth; d++) {
+                if (isCancelled) { tlLog(`\n🛑 중지됨.`, true); allOk = false; break; }
+                const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                try {
+                    const cb = `&t=${Date.now()}&key=${secretKey}`; const data = await fetchJsonSafe(`/api/timeline?mode=day&date=${dateStr}${cb}`);
+                    if (data.success) { tlLog(`\n  ➡️ [${dateStr}] ${data.message}`, true); } else { tlLog(`\n  ➡️ ❌ [${dateStr}] 에러`, true); allOk = false; break; }
+                } catch (err) { tlLog(`\n  ➡️ ❌ [${dateStr}] ${err.message}`, true); allOk = false; break; }
+            }
+            if (!silent) { toggleCancelBtn(false); if (allOk) { tlLog(`\n\n🎉 ${label} 완료!`, true); saveHistory('tl', label, true); } else { tlLog(`\n\n🚨 중단됨.`, true); saveHistory('tl', label, false); } }
+            return allOk;
+        }
+
+        async function runTimelineYear() {
+            const y = document.getElementById('tlYear').value; isCancelled = false; const statusDiv = document.getElementById('tl-status');
+            statusDiv.innerText = '⏳ 1년치 생성 중...'; statusDiv.style.color = 'var(--warn-text)'; showTlLogs(); toggleCancelBtn(true); tlLog(`🕐 [Timeline] ${y}년도 1년치 생성 시작...\n`);
+            let allOk = true;
+            for (let m = 1; m <= 12; m++) { if (isCancelled) { allOk = false; break; } const ok = await runTimelineMonth(m, true); if (!ok) { allOk = false; break; } await new Promise(r => setTimeout(r, 1500)); }
+            toggleCancelBtn(false);
+            if (allOk) { tlLog(`\n\n🎉 완료!`, true); statusDiv.innerText = '✅ 완료!'; statusDiv.style.color = 'var(--success-text)'; saveHistory('tl', `${y}년 전체`, true); } else { statusDiv.innerText = '❌ 중단됨'; saveHistory('tl', `${y}년 전체`, false); }
+        }
+
+        // 새롭게 추가된 일괄 DB 연결 체크 로직
+        async function checkAllDBs() {
+            const btn = document.getElementById('db-check-btn');
+            const resultBox = document.getElementById('db-check-results');
+            
+            btn.innerText = '⏳ 테스트 진행 중...';
+            btn.style.opacity = '0.7';
+            resultBox.style.display = 'block';
+            resultBox.innerHTML = '노션 서버와 통신 중입니다... (최대 10초 소요)';
+
+            try {
+                const data = await fetchJsonSafe(`/api/check?t=${Date.now()}`);
+
+                if (data.details && data.details.length > 0) {
+                    let html = `<ul style="list-style:none; padding:0; margin:0;">`;
+                    data.details.forEach(item => {
+                        const color = item.status === 'ok' ? 'var(--success-text)' : (item.status === 'missing' ? 'var(--text-sub)' : 'var(--fail-text)');
+                        html += `<li style="margin-bottom: 4px; color: ${color};">
+                                    <strong>${item.name}</strong> : ${item.message}
+                                 </li>`;
+                    });
+                    html += `</ul>`;
+                    
+                    if (data.success) {
+                        html += `<div style="margin-top: 8px; font-weight: bold; color: var(--success-text);">🎉 연결 확인 완료! (미사용 ID는 스킵되었습니다)</div>`;
+                    } else {
+                        html += `<div style="margin-top: 8px; font-weight: bold; color: var(--fail-text);">⚠️ 에러가 발생한 항목의 Vercel 환경 변수나 노션 연결 권한을 확인해 주세요.</div>`;
+                    }
+                    resultBox.innerHTML = html;
+                } else {
+                    resultBox.innerHTML = `❌ 오류: ${data.message || '응답을 받을 수 없습니다.'}`;
+                }
+            } catch (e) {
+                resultBox.innerHTML = `❌ ${e.message}`;
+            } finally {
+                btn.innerText = '🔍 일괄 연결 테스트 다시 실행';
+                btn.style.opacity = '1';
+            }
+        }
+
+        // ---- 속성명 점검 (읽기 전용) ----
+        let lastSchemaReport = '';
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        const SCHEMA_LEVEL_ICON = { rename: '🔤', type: '⚠️', target: '🔗', missing: '❌', 'optional-missing': '➖' };
+
+        function schemaFixHint(item) {
+            if (item.level === 'rename') return `→ 노션에서 "${item.found}" 속성의 이름을 "${item.name}"(으)로 정확히 바꿔 주세요.`;
+            if (item.level === 'type') return `→ 속성 종류가 다르면 위젯이 값을 쓸 수 없습니다. 템플릿의 "${item.name}" 속성과 같은 종류인지 확인해 주세요.`;
+            if (item.level === 'target') return `→ 이 속성을 템플릿 원본과 같은 DB에 연결해 주세요. (잘 모르겠다면 노션 가이드의 '속성명 정리 가이드' 중 "연결 대상" 표 참고)`;
+            if (item.suggest && item.suggest.length) {
+                const s = item.suggest[0];
+                return `💡 "${s.name}" 속성이 이 항목일 수 있어요 (${s.reason}). 맞다면 노션에서 이름을 "${item.name}"(으)로 바꿔 주세요.`;
+            }
+            return item.need === 'required' ? `→ 템플릿 원본의 "${item.name}" 속성을 이 DB에 추가하거나, 같은 역할의 속성 이름을 "${item.name}"(으)로 바꿔 주세요.` : '';
+        }
+
+        async function checkSchemas() {
+            const btn = document.getElementById('schema-check-btn');
+            const box = document.getElementById('schema-check-results');
+            const copyBtn = document.getElementById('schema-copy-btn');
+            btn.innerText = '⏳ 점검 중...'; btn.style.opacity = '0.7';
+            box.style.display = 'block'; box.innerHTML = '노션 DB의 속성을 읽는 중입니다... (최대 20초)';
+            copyBtn.style.display = 'none';
+            try {
+                const data = await fetchJsonSafe(`/api/check?mode=schema&t=${Date.now()}&key=${encodeURIComponent(secretKey)}`);
+                if (!data.dbs) { box.innerHTML = `❌ ${escapeHtml(data.error || data.message || '응답을 받을 수 없습니다.')}`; lastSchemaReport = ''; return; }
+
+                const lines = ['[속성명 점검 결과]'];
+                let html = '';
+                data.dbs.forEach(db => {
+                    if (db.status === 'skipped') return;
+                    if (db.status === 'fail') {
+                        html += `<div style="margin-bottom:8px; color: var(--fail-text);"><b>❌ ${escapeHtml(db.label)}</b> (${escapeHtml(db.envKey)}) — ${escapeHtml(db.message)}</div>`;
+                        lines.push(`❌ ${db.label} (${db.envKey}): ${db.message}`);
+                        return;
+                    }
+                    const icon = db.status === 'ok' ? '✅' : (db.status === 'warn' ? '⚠️' : '❌');
+                    const color = db.status === 'ok' ? 'var(--success-text)' : (db.status === 'warn' ? 'var(--warn-text)' : 'var(--fail-text)');
+                    html += `<div style="margin-bottom:10px;"><div style="color:${color}; font-weight:700;">${icon} ${escapeHtml(db.label)} <span style="font-weight:400; opacity:0.8;">(${escapeHtml(db.envKey)}) · ${db.okCount}/${db.total} 정상</span></div>`;
+                    lines.push(`${icon} ${db.label} (${db.envKey}) ${db.okCount}/${db.total} 정상`);
+                    db.items.filter(i => i.level !== 'ok').forEach(i => {
+                        const muted = i.level === 'optional-missing';
+                        const hint = schemaFixHint(i);
+                        html += `<div style="margin: 3px 0 0 14px; ${muted ? 'color: var(--text-sub);' : ''}">${SCHEMA_LEVEL_ICON[i.level] || '•'} <b>${escapeHtml(i.name)}</b> — ${escapeHtml(i.message)}${hint ? `<div style="margin-left: 16px; color: var(--text-sub);">${escapeHtml(hint)}</div>` : ''}</div>`;
+                        lines.push(`  ${SCHEMA_LEVEL_ICON[i.level] || '-'} ${i.name}: ${i.message}${hint ? ' / ' + hint : ''}`);
+                    });
+                    html += `</div>`;
+                });
+
+                const s = data.summary || {};
+                if (data.checked === 0) {
+                    html = `⚠️ ${escapeHtml(data.message || '점검할 DB가 없습니다.')}`;
+                } else if (s.error === 0 && s.fail === 0 && s.warn === 0) {
+                    html += `<div style="font-weight:700; color: var(--success-text);">🎉 모든 속성 이름이 위젯 기준과 일치합니다.</div>`;
+                } else if (s.error === 0 && s.fail === 0) {
+                    html += `<div style="font-weight:700; color: var(--success-text);">✅ 필수 속성은 모두 정상입니다. (➖ 표시는 선택 속성이라 없어도 동작합니다)</div>`;
+                } else {
+                    html += `<div style="font-weight:700; color: var(--fail-text);">⚠️ ❌/🔤 표시 항목을 노션에서 고친 뒤 다시 점검해 주세요.</div>`;
+                }
+                box.innerHTML = html;
+                lastSchemaReport = lines.join('\n');
+                if (data.checked > 0) copyBtn.style.display = 'block';
+            } catch (e) {
+                box.innerHTML = `❌ ${escapeHtml(e.message)}`; lastSchemaReport = '';
+            } finally {
+                btn.innerText = '🔎 속성명 점검 다시 실행'; btn.style.opacity = '1';
+            }
+        }
+
+        async function copySchemaReport() {
+            if (!lastSchemaReport) return;
+            const copyBtn = document.getElementById('schema-copy-btn');
+            try { await navigator.clipboard.writeText(lastSchemaReport); copyBtn.innerText = '✅ 복사됨'; }
+            catch (e) {
+                const ta = document.createElement('textarea'); ta.value = lastSchemaReport; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); copyBtn.innerText = '✅ 복사됨'; } catch (e2) { copyBtn.innerText = '복사 실패 - 결과를 직접 선택해 복사해 주세요'; }
+                document.body.removeChild(ta);
+            }
+            setTimeout(() => { copyBtn.innerText = '📋 결과 복사 (AI에게 물어볼 때)'; }, 2000);
+        }
+    </script>
+</body>
+</html>
